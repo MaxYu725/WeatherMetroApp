@@ -52,7 +52,6 @@ import com.weather.metro.ui.components.HkoRemoteImage
 import com.weather.metro.ui.components.MetroSectionLabel
 import com.weather.metro.ui.components.MetroStat
 import com.weather.metro.ui.components.MetroTile
-import com.weather.metro.ui.theme.LocalMetroAccent
 import com.weather.metro.ui.theme.LocalMetroSubText
 import com.weather.metro.ui.theme.LocalReduceMotion
 import com.weather.metro.ui.theme.argbColor
@@ -416,7 +415,11 @@ fun HourlyScreen(hourly: List<HourlyWeather>, pageColour: Color) {
                     Spacer(Modifier.weight(1f))
                     Column(horizontalAlignment = Alignment.End) {
                         Text("${item.temperatureC.roundToInt()}°", color = Color.White, fontSize = 29.sp, fontWeight = FontWeight.Light)
-                        Text("雨 ${item.precipitationProbability}%", color = LocalMetroAccent.current, fontSize = 11.sp)
+                        Text(
+                            "雨 ${item.precipitationProbability}%",
+                            color = Color.White.copy(alpha = 0.78f),
+                            fontSize = 11.sp,
+                        )
                     }
                 }
                 },
@@ -643,7 +646,7 @@ fun SettingsScreen(
             MetroTile("cache", pageColour, Modifier.fillMaxWidth(), onClick = onClearCache) {
                 Column {
                     SettingTitle("clear cache", "移除離線天氣資料並重新同步")
-                    Text("clear now", color = LocalMetroAccent.current, fontSize = 14.sp)
+                    Text("clear now", color = Color.White.copy(alpha = 0.78f), fontSize = 14.sp)
                 }
             }
         }
