@@ -6,8 +6,48 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+enum class PageColourSlot(val label: String) {
+    CURRENT("current"),
+    HOURLY("hourly"),
+    FORECAST("forecast"),
+    TOOLS("tools"),
+    SETTINGS("settings"),
+}
+
+object DefaultPageColours {
+    const val CURRENT: Long = 0xFF1BA1E2
+    const val HOURLY: Long = 0xFF00A300
+    const val FORECAST: Long = 0xFFA200FF
+    const val TOOLS: Long = 0xFFF09609
+    const val SETTINGS: Long = 0xFFE671B8
+}
+
+data class PageColours(
+    val currentArgb: Long = DefaultPageColours.CURRENT,
+    val hourlyArgb: Long = DefaultPageColours.HOURLY,
+    val forecastArgb: Long = DefaultPageColours.FORECAST,
+    val toolsArgb: Long = DefaultPageColours.TOOLS,
+    val settingsArgb: Long = DefaultPageColours.SETTINGS,
+) {
+    fun colour(slot: PageColourSlot): Long = when (slot) {
+        PageColourSlot.CURRENT -> currentArgb
+        PageColourSlot.HOURLY -> hourlyArgb
+        PageColourSlot.FORECAST -> forecastArgb
+        PageColourSlot.TOOLS -> toolsArgb
+        PageColourSlot.SETTINGS -> settingsArgb
+    }
+
+    fun withColour(slot: PageColourSlot, argb: Long): PageColours = when (slot) {
+        PageColourSlot.CURRENT -> copy(currentArgb = argb)
+        PageColourSlot.HOURLY -> copy(hourlyArgb = argb)
+        PageColourSlot.FORECAST -> copy(forecastArgb = argb)
+        PageColourSlot.TOOLS -> copy(toolsArgb = argb)
+        PageColourSlot.SETTINGS -> copy(settingsArgb = argb)
+    }
+}
+
 data class UiSettings(
-    val accentArgb: Long = 0xFF1BA1E2,
+    val pageColours: PageColours = PageColours(),
     val textScale: Float = 1f,
     val patternIntensity: Float = 0.18f,
     val reduceMotion: Boolean = false,
@@ -21,24 +61,44 @@ class SettingsRepository(context: Context) {
     private val _settings = MutableStateFlow(read())
     val settings: StateFlow<UiSettings> = _settings.asStateFlow()
 
-    private val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
-        _settings.value = read()
+    fun setPageColour(slot: PageColourSlot, argb: Long) {
+        val updated = _settings.value.copy(pageColours = _settings.value.pageColours.withColour(slot, argb))
+        update(updated) { putLong(colourPreferenceKey(slot), argb) }
     }
 
-    init {
-        preferences.registerOnSharedPreferenceChangeListener(listener)
+    fun setTextScale(value: Float) {
+        val coerced = value.coerceIn(0.85f, 1.5f)
+        update(_settings.value.copy(textScale = coerced)) { putFloat(KEY_TEXT_SCALE, coerced) }
     }
 
-    fun setAccent(argb: Long) = edit(KEY_ACCENT, argb)
-    fun setTextScale(value: Float) = edit(KEY_TEXT_SCALE, value.coerceIn(0.85f, 1.5f))
-    fun setPatternIntensity(value: Float) = edit(KEY_PATTERN, value.coerceIn(0f, 0.32f))
-    fun setReduceMotion(value: Boolean) = edit(KEY_REDUCE_MOTION, value)
-    fun setHighContrast(value: Boolean) = edit(KEY_HIGH_CONTRAST, value)
-    fun setPreciseLocation(value: Boolean) = edit(KEY_PRECISE_LOCATION, value)
-    fun setNotificationsEnabled(value: Boolean) = edit(KEY_NOTIFICATIONS, value)
+    fun setPatternIntensity(value: Float) {
+        val coerced = value.coerceIn(0f, 0.32f)
+        update(_settings.value.copy(patternIntensity = coerced)) { putFloat(KEY_PATTERN, coerced) }
+    }
+
+    fun setReduceMotion(value: Boolean) =
+        update(_settings.value.copy(reduceMotion = value)) { putBoolean(KEY_REDUCE_MOTION, value) }
+
+    fun setHighContrast(value: Boolean) =
+        update(_settings.value.copy(highContrast = value)) { putBoolean(KEY_HIGH_CONTRAST, value) }
+
+    fun setPreciseLocation(value: Boolean) =
+        update(_settings.value.copy(preciseLocation = value)) { putBoolean(KEY_PRECISE_LOCATION, value) }
+
+    fun setNotificationsEnabled(value: Boolean) =
+        update(_settings.value.copy(notificationsEnabled = value)) { putBoolean(KEY_NOTIFICATIONS, value) }
 
     private fun read() = UiSettings(
-        accentArgb = preferences.getLong(KEY_ACCENT, 0xFF1BA1E2),
+        pageColours = PageColours(
+            currentArgb = preferences.getLong(
+                KEY_CURRENT_COLOUR,
+                preferences.getLong(KEY_LEGACY_ACCENT, DefaultPageColours.CURRENT),
+            ),
+            hourlyArgb = preferences.getLong(KEY_HOURLY_COLOUR, DefaultPageColours.HOURLY),
+            forecastArgb = preferences.getLong(KEY_FORECAST_COLOUR, DefaultPageColours.FORECAST),
+            toolsArgb = preferences.getLong(KEY_TOOLS_COLOUR, DefaultPageColours.TOOLS),
+            settingsArgb = preferences.getLong(KEY_SETTINGS_COLOUR, DefaultPageColours.SETTINGS),
+        ),
         textScale = preferences.getFloat(KEY_TEXT_SCALE, 1f),
         patternIntensity = preferences.getFloat(KEY_PATTERN, 0.18f),
         reduceMotion = preferences.getBoolean(KEY_REDUCE_MOTION, false),
@@ -47,19 +107,31 @@ class SettingsRepository(context: Context) {
         notificationsEnabled = preferences.getBoolean(KEY_NOTIFICATIONS, true),
     )
 
-    private fun edit(key: String, value: Any) {
-        preferences.edit().apply {
-            when (value) {
-                is Boolean -> putBoolean(key, value)
-                is Float -> putFloat(key, value)
-                is Long -> putLong(key, value)
-            }
-        }.apply()
+    private inline fun update(
+        updated: UiSettings,
+        persist: SharedPreferences.Editor.() -> Unit,
+    ) {
+        if (updated == _settings.value) return
+        _settings.value = updated
+        preferences.edit().apply(persist).apply()
+    }
+
+    private fun colourPreferenceKey(slot: PageColourSlot): String = when (slot) {
+        PageColourSlot.CURRENT -> KEY_CURRENT_COLOUR
+        PageColourSlot.HOURLY -> KEY_HOURLY_COLOUR
+        PageColourSlot.FORECAST -> KEY_FORECAST_COLOUR
+        PageColourSlot.TOOLS -> KEY_TOOLS_COLOUR
+        PageColourSlot.SETTINGS -> KEY_SETTINGS_COLOUR
     }
 
     companion object {
         private const val PREFERENCES_NAME = "weather_metro_settings"
-        private const val KEY_ACCENT = "accent"
+        private const val KEY_LEGACY_ACCENT = "accent"
+        private const val KEY_CURRENT_COLOUR = "page_colour_current"
+        private const val KEY_HOURLY_COLOUR = "page_colour_hourly"
+        private const val KEY_FORECAST_COLOUR = "page_colour_forecast"
+        private const val KEY_TOOLS_COLOUR = "page_colour_tools"
+        private const val KEY_SETTINGS_COLOUR = "page_colour_settings"
         private const val KEY_TEXT_SCALE = "text_scale"
         private const val KEY_PATTERN = "pattern_intensity"
         private const val KEY_REDUCE_MOTION = "reduce_motion"

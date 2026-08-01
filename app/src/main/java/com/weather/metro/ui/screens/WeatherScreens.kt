@@ -2,6 +2,7 @@ package com.weather.metro.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import com.weather.metro.BuildConfig
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,19 +19,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.weather.metro.data.settings.PageColourSlot
 import com.weather.metro.data.settings.UiSettings
 import com.weather.metro.domain.AlertSeverity
 import com.weather.metro.domain.AstronomyInfo
@@ -51,11 +52,11 @@ import com.weather.metro.ui.components.HkoRemoteImage
 import com.weather.metro.ui.components.MetroSectionLabel
 import com.weather.metro.ui.components.MetroStat
 import com.weather.metro.ui.components.MetroTile
-import com.weather.metro.ui.theme.LocalMetroAccent
 import com.weather.metro.ui.theme.LocalMetroSubText
 import com.weather.metro.ui.theme.LocalReduceMotion
 import com.weather.metro.ui.theme.argbColor
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -65,14 +66,24 @@ import kotlin.math.roundToInt
 @Composable
 fun CurrentScreen(
     snapshot: WeatherSnapshot,
-    accent: Color,
+    pageColour: Color,
     onRefresh: () -> Unit,
     onRequestLocation: () -> Unit,
 ) {
     var heroExpanded by remember { mutableStateOf(false) }
     var overviewExpanded by remember { mutableStateOf(false) }
     val current = snapshot.current
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val reduceMotion = LocalReduceMotion.current
+    val scrollToItem: (Int) -> Unit = { index ->
+        scope.launch {
+            if (!reduceMotion) delay(90)
+            listState.animateScrollToItem(index)
+        }
+    }
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 22.dp, end = 16.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -90,20 +101,28 @@ fun CurrentScreen(
                     fontSize = 12.sp,
                     modifier = Modifier.weight(1f),
                 )
-                Text("refresh", color = accent, fontSize = 13.sp, modifier = Modifier.clickable(onClick = onRefresh))
+                Text("refresh", color = pageColour, fontSize = 13.sp, modifier = Modifier.clickable(onClick = onRefresh))
             }
         }
 
         item {
             ExpandableMetroTile(
                 seed = "current:${snapshot.location.district}",
-                background = accent,
+                background = pageColour,
                 expanded = heroExpanded,
-                onExpandedChange = { heroExpanded = it },
+                onExpandedChange = {
+                    heroExpanded = it
+                    if (it) scrollToItem(1)
+                },
                 collapsed = {
                 Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.weight(1f)) {
-                        Text(snapshot.location.label, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Light)
+                        Text(
+                            snapshot.location.label,
+                            color = Color.White,
+                            fontSize = if (heroExpanded) 23.sp else 28.sp,
+                            fontWeight = FontWeight.Light,
+                        )
                         Text(
                             "${snapshot.location.district} · ${snapshot.location.stationName}",
                             color = Color.White.copy(alpha = 0.75f),
@@ -112,20 +131,20 @@ fun CurrentScreen(
                     }
                     Text(if (heroExpanded) "−" else "+", color = Color.White, fontSize = 25.sp)
                 }
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(if (heroExpanded) 8.dp else 16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Text(
                         text = current.temperatureC?.let { "${it.roundToInt()}°" } ?: "--°",
                         color = Color.White,
-                        fontSize = 72.sp,
-                        lineHeight = 72.sp,
+                        fontSize = if (heroExpanded) 50.sp else 72.sp,
+                        lineHeight = if (heroExpanded) 52.sp else 72.sp,
                         fontWeight = FontWeight.Light,
                         modifier = Modifier.weight(1f),
                     )
                     HkoRemoteImage(
                         url = current.weatherIconCode?.let(::hkoWeatherIconUrl),
                         contentDescription = "香港天文台天氣圖示",
-                        modifier = Modifier.size(92.dp),
+                        modifier = Modifier.size(if (heroExpanded) 64.dp else 92.dp),
                     )
                 }
                 Spacer(Modifier.height(12.dp))
@@ -168,9 +187,12 @@ fun CurrentScreen(
         item {
             ExpandableMetroTile(
                 seed = "overview",
-                background = Color(0xFF242424),
+                background = pageColour,
                 expanded = overviewExpanded,
-                onExpandedChange = { overviewExpanded = it },
+                onExpandedChange = {
+                    overviewExpanded = it
+                    if (it) scrollToItem(2)
+                },
                 collapsed = {
                 Text("天氣概況", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Light)
                 Spacer(Modifier.height(9.dp))
@@ -179,7 +201,8 @@ fun CurrentScreen(
                     color = Color.White,
                     maxLines = if (overviewExpanded) Int.MAX_VALUE else 4,
                     overflow = TextOverflow.Ellipsis,
-                    lineHeight = 26.sp,
+                    fontSize = 16.sp,
+                    lineHeight = 23.sp,
                 )
                 Text(formatHkoTime(snapshot.overview.updatedAt), color = LocalMetroSubText.current, fontSize = 11.sp)
                 },
@@ -193,15 +216,15 @@ fun CurrentScreen(
         }
 
         item { MetroSectionLabel("alerts & tips") }
-        item { AlertsSection(snapshot.alerts) }
+        item { AlertsSection(snapshot.alerts, pageColour) { scrollToItem(4) } }
     }
 }
 
 @Composable
 private fun AstronomyPanel(info: AstronomyInfo) {
-    Spacer(Modifier.height(22.dp))
-    Text("astronomy", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Light)
-    Spacer(Modifier.height(10.dp))
+    Spacer(Modifier.height(14.dp))
+    Text("astronomy", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Light)
+    Spacer(Modifier.height(6.dp))
     StatGrid(
         listOf(
             Triple("日出", info.sunrise ?: "--", false),
@@ -215,11 +238,11 @@ private fun AstronomyPanel(info: AstronomyInfo) {
         ),
     )
     if (info.tides.isNotEmpty()) {
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(10.dp))
         Text("鄰近潮汐站", color = Color.White.copy(alpha = 0.75f), fontSize = 12.sp)
         info.tides.forEach { tide ->
-            Row(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                Text(tide.time, color = Color.White, modifier = Modifier.width(70.dp), fontSize = 18.sp)
+            Row(Modifier.fillMaxWidth().padding(top = 5.dp)) {
+                Text(tide.time, color = Color.White, modifier = Modifier.width(64.dp), fontSize = 16.sp)
                 Text(tide.type, color = Color.White, modifier = Modifier.weight(1f))
                 Text(tide.heightMetres.display(" m"), color = Color.White)
             }
@@ -230,13 +253,17 @@ private fun AstronomyPanel(info: AstronomyInfo) {
 @Composable
 private fun StatGrid(items: List<Triple<String, String, Boolean>>) {
     items.chunked(2).forEach { rowItems ->
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            rowItems.forEach { (label, value, secondary) ->
-                MetroStat(label, value, Modifier.weight(1f), secondary)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (rowItems.size == 1) {
+                val (label, value, secondary) = rowItems.single()
+                MetroStat(label, value, Modifier.fillMaxWidth(), secondary)
+            } else {
+                rowItems.forEach { (label, value, secondary) ->
+                    MetroStat(label, value, Modifier.weight(1f), secondary)
+                }
             }
-            if (rowItems.size == 1) Spacer(Modifier.weight(1f))
         }
-        Spacer(Modifier.height(9.dp))
+        Spacer(Modifier.height(6.dp))
     }
 }
 
@@ -250,36 +277,40 @@ private fun OverviewSection(title: String, body: String) {
         fontSize = 12.sp,
         fontWeight = FontWeight.Bold,
     )
-    Spacer(Modifier.height(8.dp))
-    Text(body, color = Color.White, lineHeight = 27.sp, textAlign = TextAlign.Justify)
-    Spacer(Modifier.height(16.dp))
+    Spacer(Modifier.height(6.dp))
+    Text(body, color = Color.White, fontSize = 16.sp, lineHeight = 23.sp, textAlign = TextAlign.Justify)
+    Spacer(Modifier.height(10.dp))
 }
 
 @Composable
-private fun AlertsSection(alerts: List<WeatherAlert>) {
+private fun AlertsSection(alerts: List<WeatherAlert>, pageColour: Color, onAlertExpanded: () -> Unit) {
     var selectedId by remember(alerts) { mutableStateOf<String?>(null) }
     if (alerts.isEmpty()) {
-        MetroTile(seed = "no-alerts", background = Color(0xFF222222), modifier = Modifier.fillMaxWidth()) {
+        MetroTile(seed = "no-alerts", background = pageColour, modifier = Modifier.fillMaxWidth()) {
             Text("現時沒有生效的天氣警告或特別提示。", color = LocalMetroSubText.current)
         }
         return
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        alerts.chunked(4).forEachIndexed { groupIndex, group ->
+        alerts.chunked(4).forEach { group ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 group.forEach { alert ->
                     AlertSmallTile(
                         alert = alert,
                         selected = alert.id == selectedId,
                         modifier = Modifier.weight(1f),
-                        onClick = { selectedId = if (selectedId == alert.id) null else alert.id },
+                        onClick = {
+                            val next = if (selectedId == alert.id) null else alert.id
+                            selectedId = next
+                            if (next != null) onAlertExpanded()
+                        },
                     )
                 }
                 repeat(4 - group.size) { Spacer(Modifier.weight(1f)) }
             }
             val selected = group.firstOrNull { it.id == selectedId }
-            if (selected != null) AlertDetailTile(selected, groupIndex)
+            if (selected != null) AlertDetailTile(selected)
         }
     }
 }
@@ -324,41 +355,39 @@ private fun AlertSmallTile(
 }
 
 @Composable
-private fun AlertDetailTile(alert: WeatherAlert, groupIndex: Int) {
-    val requester = remember { BringIntoViewRequester() }
-    val reduceMotion = LocalReduceMotion.current
-    LaunchedEffect(alert.id) {
-        if (!reduceMotion) delay(180)
-        requester.bringIntoView()
-    }
+private fun AlertDetailTile(alert: WeatherAlert) {
     MetroTile(
         seed = "detail:${alert.id}",
         background = alertColor(alert.severity),
-        modifier = Modifier.fillMaxWidth().bringIntoViewRequester(requester),
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Column {
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
-                    Text(alert.title, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Light)
+                    Text(alert.title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Light)
                     Text(
                         "${alert.actionCode.lowercase()} · ${formatHkoTime(alert.updatedAt)}",
                         color = Color.White.copy(alpha = 0.75f),
                         fontSize = 11.sp,
                     )
                 }
-                HkoRemoteImage(alert.iconUrl, alert.title, Modifier.size(58.dp), if (alert.isTip) "i" else "!")
+                HkoRemoteImage(alert.iconUrl, alert.title, Modifier.size(42.dp), if (alert.isTip) "i" else "!")
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(8.dp))
             HorizontalDivider(color = Color.White.copy(alpha = 0.3f))
-            Spacer(Modifier.height(12.dp))
-            Text(alert.content, color = Color.White, lineHeight = 27.sp, textAlign = TextAlign.Justify)
+            Spacer(Modifier.height(8.dp))
+            Text(alert.content, color = Color.White, fontSize = 16.sp, lineHeight = 23.sp, textAlign = TextAlign.Justify)
         }
     }
 }
 
 @Composable
-fun HourlyScreen(hourly: List<HourlyWeather>) {
+fun HourlyScreen(hourly: List<HourlyWeather>, pageColour: Color) {
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val reduceMotion = LocalReduceMotion.current
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 22.dp, end = 16.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -368,9 +397,17 @@ fun HourlyScreen(hourly: List<HourlyWeather>) {
             var expanded by remember(item.epochMillis) { mutableStateOf(false) }
             ExpandableMetroTile(
                 seed = "hourly:${item.epochMillis}",
-                background = if (index % 2 == 0) Color(0xFF202020) else Color(0xFF292929),
+                background = pageColour,
                 expanded = expanded,
-                onExpandedChange = { expanded = it },
+                onExpandedChange = {
+                    expanded = it
+                    if (it) {
+                        scope.launch {
+                            if (!reduceMotion) delay(90)
+                            listState.animateScrollToItem(index + 1)
+                        }
+                    }
+                },
                 collapsed = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(item.label, color = Color.White, fontSize = 22.sp, modifier = Modifier.width(72.dp))
@@ -378,7 +415,11 @@ fun HourlyScreen(hourly: List<HourlyWeather>) {
                     Spacer(Modifier.weight(1f))
                     Column(horizontalAlignment = Alignment.End) {
                         Text("${item.temperatureC.roundToInt()}°", color = Color.White, fontSize = 29.sp, fontWeight = FontWeight.Light)
-                        Text("雨 ${item.precipitationProbability}%", color = LocalMetroAccent.current, fontSize = 11.sp)
+                        Text(
+                            "雨 ${item.precipitationProbability}%",
+                            color = Color.White.copy(alpha = 0.78f),
+                            fontSize = 11.sp,
+                        )
                     }
                 }
                 },
@@ -388,6 +429,7 @@ fun HourlyScreen(hourly: List<HourlyWeather>) {
                         Triple("體感", "${item.apparentTemperatureC.roundToInt()}°C", true),
                         Triple("濕度", "${item.humidityPercent}%", true),
                         Triple("降水", "${item.precipitationMm} mm", true),
+                        Triple("降雨概率", "${item.precipitationProbability}%", true),
                         Triple("風向風速", "${item.windDirection} ${item.windSpeedKmh} km/h", true),
                         Triple("紫外線", item.uvIndex.toString(), true),
                     ),
@@ -399,19 +441,30 @@ fun HourlyScreen(hourly: List<HourlyWeather>) {
 }
 
 @Composable
-fun ForecastScreen(snapshot: WeatherSnapshot) {
+fun ForecastScreen(snapshot: WeatherSnapshot, pageColour: Color) {
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val reduceMotion = LocalReduceMotion.current
+    val summaryOffset = if (snapshot.overview.generalSituation.isNotBlank()) 1 else 0
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 22.dp, end = 16.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (snapshot.overview.generalSituation.isNotBlank()) {
             item {
-                MetroTile("forecast-summary", Color(0xFF242424), Modifier.fillMaxWidth()) {
+                MetroTile("forecast-summary", pageColour, Modifier.fillMaxWidth()) {
                     Column {
                         Text("香港天文台天氣概況", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Light)
                         Spacer(Modifier.height(9.dp))
-                        Text(snapshot.overview.generalSituation, color = Color.White, lineHeight = 26.sp, textAlign = TextAlign.Justify)
+                        Text(
+                            snapshot.overview.generalSituation,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            lineHeight = 23.sp,
+                            textAlign = TextAlign.Justify,
+                        )
                     }
                 }
             }
@@ -420,13 +473,21 @@ fun ForecastScreen(snapshot: WeatherSnapshot) {
             var expanded by remember(day.date) { mutableStateOf(false) }
             ExpandableMetroTile(
                 seed = "forecast:${day.date}",
-                background = if (index == 0) LocalMetroAccent.current else Color(0xFF252525),
+                background = pageColour,
                 expanded = expanded,
-                onExpandedChange = { expanded = it },
+                onExpandedChange = {
+                    expanded = it
+                    if (it) {
+                        scope.launch {
+                            if (!reduceMotion) delay(90)
+                            listState.animateScrollToItem(index + summaryOffset)
+                        }
+                    }
+                },
                 collapsed = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.width(76.dp)) {
-                        Text(day.weekday, color = if (index == 0) Color.White else LocalMetroAccent.current, fontSize = 22.sp)
+                        Text(day.weekday, color = Color.White, fontSize = 22.sp)
                         Text(day.date, color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
                     }
                     HkoRemoteImage(hkoWeatherIconUrl(day.iconCode), day.description, Modifier.size(44.dp))
@@ -440,9 +501,9 @@ fun ForecastScreen(snapshot: WeatherSnapshot) {
                 }
                 },
                 expandedContent = {
-                Text(day.description, color = Color.White, lineHeight = 27.sp, textAlign = TextAlign.Justify)
-                Spacer(Modifier.height(12.dp))
-                Text(day.wind, color = Color.White.copy(alpha = 0.82f))
+                Text(day.description, color = Color.White, fontSize = 16.sp, lineHeight = 23.sp, textAlign = TextAlign.Justify)
+                Spacer(Modifier.height(8.dp))
+                Text(day.wind, color = Color.White.copy(alpha = 0.82f), fontSize = 15.sp)
                 Text(
                     "濕度 ${day.minHumidityPercent}–${day.maxHumidityPercent}% · 顯著降雨概率 ${day.precipitationProbability}",
                     color = Color.White.copy(alpha = 0.75f),
@@ -455,7 +516,7 @@ fun ForecastScreen(snapshot: WeatherSnapshot) {
 }
 
 @Composable
-fun ToolsScreen() {
+fun ToolsScreen(pageColour: Color) {
     val context = LocalContext.current
     val tools = listOf(
         Triple("rainfall", "定點降雨及閃電預報", "https://maps.weather.gov.hk/ocf/index_uc.html?data=ncrf"),
@@ -469,10 +530,10 @@ fun ToolsScreen() {
         verticalArrangement = Arrangement.spacedBy(9.dp),
     ) {
         item { Text("官方香港天文台工具將於瀏覽器開啟。", color = LocalMetroSubText.current) }
-        itemsIndexed(tools) { index, tool ->
+        itemsIndexed(tools) { _, tool ->
             MetroTile(
                 seed = tool.first,
-                background = if (index == 0) LocalMetroAccent.current else Color(0xFF252525),
+                background = pageColour,
                 modifier = Modifier.fillMaxWidth().height(142.dp),
                 onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(tool.third))) },
             ) {
@@ -490,7 +551,8 @@ fun ToolsScreen() {
 @Composable
 fun SettingsScreen(
     settings: UiSettings,
-    onAccentChange: (Long) -> Unit,
+    pageColour: Color,
+    onPageColourChange: (PageColourSlot, Long) -> Unit,
     onTextScaleChange: (Float) -> Unit,
     onPatternIntensityChange: (Float) -> Unit,
     onReduceMotionChange: (Boolean) -> Unit,
@@ -500,25 +562,60 @@ fun SettingsScreen(
     onClearCache: () -> Unit,
 ) {
     val accents = listOf(0xFF1BA1E2, 0xFF00A300, 0xFFA200FF, 0xFFE671B8, 0xFFF09609, 0xFFE51400)
+    var selectedPage by rememberSaveable { mutableStateOf(PageColourSlot.CURRENT) }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 22.dp, end = 16.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(9.dp),
     ) {
         item {
-            MetroTile("accent-settings", Color(0xFF242424), Modifier.fillMaxWidth()) {
+            MetroTile("page-colours", pageColour, Modifier.fillMaxWidth()) {
                 Column {
-                    SettingTitle("accent colour", "改變所有重點色和主要磁貼")
-                    Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    SettingTitle("page colours", "為每個 Pivot 頁面設定自己的磁貼顏色")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        PageColourSlot.entries.forEach { slot ->
+                            val selected = selectedPage == slot
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(42.dp)
+                                    .background(argbColor(settings.pageColours.colour(slot)))
+                                    .clickable { selectedPage = slot }
+                                    .padding(horizontal = 3.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = if (selected) "✓ ${slot.label}" else slot.label,
+                                    color = Color.White,
+                                    fontSize = 9.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Clip,
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "${selectedPage.label} colour",
+                        color = Color.White.copy(alpha = 0.78f),
+                        fontSize = 11.sp,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         accents.forEach { value ->
                             Box(
                                 Modifier
-                                    .size(38.dp)
+                                    .size(36.dp)
                                     .background(argbColor(value))
-                                    .clickable { onAccentChange(value) },
+                                    .clickable { onPageColourChange(selectedPage, value) },
                                 contentAlignment = Alignment.Center,
                             ) {
-                                if (settings.accentArgb == value) Text("✓", color = Color.White)
+                                if (settings.pageColours.colour(selectedPage) == value) {
+                                    Text("✓", color = Color.White)
+                                }
                             }
                         }
                     }
@@ -526,7 +623,7 @@ fun SettingsScreen(
             }
         }
         item {
-            MetroTile("text-settings", Color(0xFF242424), Modifier.fillMaxWidth()) {
+            MetroTile("text-settings", pageColour, Modifier.fillMaxWidth()) {
                 Column {
                     SettingTitle("text size", "${(settings.textScale * 100).roundToInt()}%")
                     Slider(value = settings.textScale, onValueChange = onTextScaleChange, valueRange = 0.85f..1.5f)
@@ -534,28 +631,28 @@ fun SettingsScreen(
             }
         }
         item {
-            MetroTile("pattern-settings", Color(0xFF242424), Modifier.fillMaxWidth()) {
+            MetroTile("pattern-settings", pageColour, Modifier.fillMaxWidth()) {
                 Column {
                     SettingTitle("geometric pattern", "${(settings.patternIntensity / 0.32f * 100).roundToInt()}% intensity")
                     Slider(value = settings.patternIntensity, onValueChange = onPatternIntensityChange, valueRange = 0f..0.32f)
                 }
             }
         }
-        item { SettingToggleTile("reduce-motion", "reduce motion", "縮短 Pivot 和展開動畫", settings.reduceMotion, onReduceMotionChange) }
-        item { SettingToggleTile("contrast", "high contrast", "提高次要文字對比度", settings.highContrast, onHighContrastChange) }
-        item { SettingToggleTile("location", "precise location", "使用精確定位及香港街區解析", settings.preciseLocation, onPreciseLocationChange) }
-        item { SettingToggleTile("notifications", "weather notifications", "訂閱香港天文台警告更新", settings.notificationsEnabled, onNotificationsChange) }
+        item { SettingToggleTile("reduce-motion", "reduce motion", "縮短 Pivot 和展開動畫", pageColour, settings.reduceMotion, onReduceMotionChange) }
+        item { SettingToggleTile("contrast", "high contrast", "提高次要文字對比度", pageColour, settings.highContrast, onHighContrastChange) }
+        item { SettingToggleTile("location", "precise location", "使用精確定位及香港街區解析", pageColour, settings.preciseLocation, onPreciseLocationChange) }
+        item { SettingToggleTile("notifications", "weather notifications", "訂閱香港天文台警告更新", pageColour, settings.notificationsEnabled, onNotificationsChange) }
         item {
-            MetroTile("cache", Color(0xFF242424), Modifier.fillMaxWidth(), onClick = onClearCache) {
+            MetroTile("cache", pageColour, Modifier.fillMaxWidth(), onClick = onClearCache) {
                 Column {
                     SettingTitle("clear cache", "移除離線天氣資料並重新同步")
-                    Text("clear now", color = LocalMetroAccent.current, fontSize = 14.sp)
+                    Text("clear now", color = Color.White.copy(alpha = 0.78f), fontSize = 14.sp)
                 }
             }
         }
         item {
             Text(
-                "Weather Metro 1.0.0\nWeather: Hong Kong Observatory first\nHourly estimates: Open-Meteo",
+                "Weather Metro ${BuildConfig.VERSION_NAME}\nWeather: Hong Kong Observatory first\nHourly estimates: Open-Meteo",
                 color = LocalMetroSubText.current,
                 fontSize = 11.sp,
                 modifier = Modifier.padding(vertical = 16.dp),
@@ -565,8 +662,15 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SettingToggleTile(seed: String, title: String, description: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    MetroTile(seed, Color(0xFF242424), Modifier.fillMaxWidth(), onClick = { onChange(!checked) }) {
+private fun SettingToggleTile(
+    seed: String,
+    title: String,
+    description: String,
+    pageColour: Color,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    MetroTile(seed, pageColour, Modifier.fillMaxWidth(), onClick = { onChange(!checked) }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) { SettingTitle(title, description) }
             Switch(checked = checked, onCheckedChange = onChange)

@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.weather.metro.data.settings.PageColourSlot
 import com.weather.metro.domain.WeatherLoadState
 import com.weather.metro.ui.components.MetroProgress
 import com.weather.metro.ui.screens.CurrentScreen
@@ -41,9 +42,11 @@ import com.weather.metro.ui.screens.SettingsScreen
 import com.weather.metro.ui.screens.ToolsScreen
 import com.weather.metro.ui.theme.LocalMetroSubText
 import com.weather.metro.ui.theme.LocalReduceMotion
+import com.weather.metro.ui.theme.MetroPageTheme
 import com.weather.metro.ui.theme.WeatherMetroTheme
+import com.weather.metro.ui.theme.argbColor
 
-private val pages = listOf("current", "hourly", "forecast", "tools", "settings")
+private val pages = PageColourSlot.entries
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -67,6 +70,7 @@ fun WeatherMetroRoot(
         val alignedInitialPage = Int.MAX_VALUE / 2 - (Int.MAX_VALUE / 2 % pages.size)
         val pagerState = rememberPagerState(initialPage = alignedInitialPage) { Int.MAX_VALUE }
         val pageIndex = pagerState.currentPage.mod(pages.size)
+        val activePageColour = argbColor(settings.pageColours.colour(pages[pageIndex]))
         val reduceMotion = LocalReduceMotion.current
 
         Column(
@@ -78,14 +82,14 @@ fun WeatherMetroRoot(
                 loadState is WeatherLoadState.Loading ||
                 (loadState as? WeatherLoadState.Ready)?.refreshing == true
             ) {
-                MetroProgress()
+                MetroProgress(colour = activePageColour)
             } else {
                 Spacer(Modifier.height(4.dp))
             }
 
             PivotHeader(
-                current = pages[pageIndex],
-                next = pages[(pageIndex + 1) % pages.size],
+                current = pages[pageIndex].label,
+                next = pages[(pageIndex + 1) % pages.size].label,
                 reduceMotion = reduceMotion,
             )
 
@@ -96,36 +100,41 @@ fun WeatherMetroRoot(
                 modifier = Modifier.fillMaxSize(),
             ) { virtualPage ->
                 val index = virtualPage.mod(pages.size)
-                when (val state = loadState) {
-                    WeatherLoadState.Loading -> LoadingPage()
-                    is WeatherLoadState.Error -> ErrorPage(
-                        message = state.message,
-                        retry = viewModel::refresh,
-                    )
-                    is WeatherLoadState.Ready -> when (index) {
-                        0 -> CurrentScreen(
-                            snapshot = state.snapshot,
-                            accent = MaterialTheme.colorScheme.primary,
-                            onRefresh = viewModel::refresh,
-                            onRequestLocation = requestLocationPermission,
+                val page = pages[index]
+                val pageColour = argbColor(settings.pageColours.colour(page))
+                MetroPageTheme(pageColour) {
+                    when (val state = loadState) {
+                        WeatherLoadState.Loading -> LoadingPage()
+                        is WeatherLoadState.Error -> ErrorPage(
+                            message = state.message,
+                            retry = viewModel::refresh,
                         )
-                        1 -> HourlyScreen(state.snapshot.hourly)
-                        2 -> ForecastScreen(state.snapshot)
-                        3 -> ToolsScreen()
-                        else -> SettingsScreen(
-                            settings = settings,
-                            onAccentChange = viewModel::setAccent,
-                            onTextScaleChange = viewModel::setTextScale,
-                            onPatternIntensityChange = viewModel::setPatternIntensity,
-                            onReduceMotionChange = viewModel::setReduceMotion,
-                            onHighContrastChange = viewModel::setHighContrast,
-                            onPreciseLocationChange = viewModel::setPreciseLocation,
-                            onNotificationsChange = { enabled ->
-                                viewModel.setNotificationsEnabled(enabled)
-                                if (enabled) requestNotificationPermission()
-                            },
-                            onClearCache = viewModel::clearCache,
-                        )
+                        is WeatherLoadState.Ready -> when (page) {
+                            PageColourSlot.CURRENT -> CurrentScreen(
+                                snapshot = state.snapshot,
+                                pageColour = pageColour,
+                                onRefresh = viewModel::refresh,
+                                onRequestLocation = requestLocationPermission,
+                            )
+                            PageColourSlot.HOURLY -> HourlyScreen(state.snapshot.hourly, pageColour)
+                            PageColourSlot.FORECAST -> ForecastScreen(state.snapshot, pageColour)
+                            PageColourSlot.TOOLS -> ToolsScreen(pageColour)
+                            PageColourSlot.SETTINGS -> SettingsScreen(
+                                settings = settings,
+                                pageColour = pageColour,
+                                onPageColourChange = viewModel::setPageColour,
+                                onTextScaleChange = viewModel::setTextScale,
+                                onPatternIntensityChange = viewModel::setPatternIntensity,
+                                onReduceMotionChange = viewModel::setReduceMotion,
+                                onHighContrastChange = viewModel::setHighContrast,
+                                onPreciseLocationChange = viewModel::setPreciseLocation,
+                                onNotificationsChange = { enabled ->
+                                    viewModel.setNotificationsEnabled(enabled)
+                                    if (enabled) requestNotificationPermission()
+                                },
+                                onClearCache = viewModel::clearCache,
+                            )
+                        }
                     }
                 }
             }
