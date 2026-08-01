@@ -54,6 +54,7 @@ import com.weather.metro.ui.components.MetroTile
 import com.weather.metro.ui.theme.LocalMetroAccent
 import com.weather.metro.ui.theme.LocalMetroSubText
 import com.weather.metro.ui.theme.LocalReduceMotion
+import com.weather.metro.ui.theme.argbColor
 import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.ZoneId
@@ -513,7 +514,7 @@ fun SettingsScreen(
                             Box(
                                 Modifier
                                     .size(38.dp)
-                                    .background(Color(value.toULong()))
+                                    .background(argbColor(value))
                                     .clickable { onAccentChange(value) },
                                 contentAlignment = Alignment.Center,
                             ) {
