@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Weather Metro</string>
+    <string name="notification_channel_urgent">Urgent weather alerts</string>
+    <string name="notification_channel_general">Weather alerts</string>
+    <string name="notification_channel_tips">Special weather tips</string>
+    <string name="notification_channel_status">Weather service status</string>
+</resources>

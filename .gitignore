@@ -1,0 +1,32 @@
+# Android and Gradle
+.gradle/
+build/
+**/build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# IDE
+.idea/
+*.iml
+
+# Signing and server credentials
+*.jks
+*.keystore
+*.p12
+service-account*.json
+.env
+
+# Generated release material
+app/release.keystore
+*.apk
+*.aab
+*.sha256
+
+# Apps Script local metadata
+backend/apps-script/.clasp.json
+
+# Platform noise
+.DS_Store
+Thumbs.db

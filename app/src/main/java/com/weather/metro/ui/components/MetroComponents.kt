@@ -1,0 +1,235 @@
+package com.weather.metro.ui.components
+
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.weather.metro.ui.theme.LocalMetroSubText
+import com.weather.metro.ui.theme.LocalPatternIntensity
+import com.weather.metro.ui.theme.LocalReduceMotion
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URI
+import kotlin.random.Random
+
+@Composable
+fun MetroSectionLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        modifier = modifier.padding(top = 22.dp, bottom = 10.dp),
+        color = LocalMetroSubText.current,
+        fontSize = 18.sp,
+        fontWeight = FontWeight.Light,
+    )
+}
+
+@Composable
+fun MetroTile(
+    seed: String,
+    background: Color,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    contentPadding: androidx.compose.foundation.layout.PaddingValues =
+        androidx.compose.foundation.layout.PaddingValues(18.dp),
+    content: @Composable BoxScope.() -> Unit,
+) {
+    val patternIntensity = LocalPatternIntensity.current
+    val clickableModifier = if (onClick != null) {
+        Modifier.clickable(role = Role.Button, onClick = onClick)
+    } else {
+        Modifier
+    }
+    Box(
+        modifier = modifier
+            .clip(androidx.compose.ui.graphics.RectangleShape)
+            .background(background)
+            .metroPattern(seed, patternIntensity)
+            .then(clickableModifier)
+            .padding(contentPadding),
+        content = content,
+    )
+}
+
+@Composable
+fun ExpandableMetroTile(
+    seed: String,
+    background: Color,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    collapsed: @Composable ColumnScope.() -> Unit,
+    expandedContent: @Composable ColumnScope.() -> Unit,
+) {
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    val reduceMotion = LocalReduceMotion.current
+    LaunchedEffect(expanded) {
+        if (expanded) {
+            if (!reduceMotion) delay(220)
+            bringIntoViewRequester.bringIntoView()
+        }
+    }
+    MetroTile(
+        seed = seed,
+        background = background,
+        onClick = { onExpandedChange(!expanded) },
+        modifier = modifier.bringIntoViewRequester(bringIntoViewRequester),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateContentSize(tween(if (reduceMotion) 1 else 520)),
+        ) {
+            collapsed()
+            if (expanded) {
+                Spacer(Modifier.height(18.dp))
+                HorizontalDivider(color = Color.White.copy(alpha = 0.28f))
+                Spacer(Modifier.height(16.dp))
+                expandedContent()
+            }
+        }
+    }
+}
+
+@Composable
+fun MetroStat(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    secondary: Boolean = false,
+) {
+    Column(
+        modifier = modifier
+            .background(Color.Black.copy(alpha = 0.16f))
+            .padding(12.dp),
+    ) {
+        Text(
+            text = label,
+            color = Color.White.copy(alpha = 0.76f),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(5.dp))
+        Text(text = value, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Light)
+        if (secondary) {
+            Text(text = "secondary estimate", color = Color.White.copy(alpha = 0.62f), fontSize = 9.sp)
+        }
+    }
+}
+
+@Composable
+fun HkoRemoteImage(
+    url: String?,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    fallback: String = "☁",
+) {
+    val bitmap by produceState<Bitmap?>(initialValue = null, url) {
+        value = url?.let { loadBitmap(it) }
+    }
+    if (bitmap != null) {
+        androidx.compose.foundation.Image(
+            bitmap = bitmap!!.asImageBitmap(),
+            contentDescription = contentDescription,
+            modifier = modifier,
+        )
+    } else {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Text(text = fallback, color = Color.White, fontSize = 36.sp)
+        }
+    }
+}
+
+@Composable
+fun MetroProgress(modifier: Modifier = Modifier) {
+    val accent = MaterialTheme.colorScheme.primary
+    Canvas(modifier = modifier.fillMaxWidth().height(4.dp)) {
+        drawRect(accent, size = Size(size.width * 0.36f, size.height))
+    }
+}
+
+private fun Modifier.metroPattern(seed: String, intensity: Float): Modifier = drawBehind {
+    if (intensity <= 0f) return@drawBehind
+    val random = Random(seed.hashCode())
+    val virtualHeight = 1100.dp.toPx()
+    repeat(10) { index ->
+        val x = random.nextFloat() * size.width
+        val y = random.nextFloat() * virtualHeight - 90.dp.toPx()
+        val width = (70 + random.nextInt(160)).dp.toPx()
+        val height = (55 + random.nextInt(150)).dp.toPx()
+        val color = if (index % 3 == 0) Color.Black.copy(alpha = intensity * 0.65f)
+        else Color.White.copy(alpha = intensity)
+        when (index % 3) {
+            0 -> rotate(random.nextFloat() * 70f, Offset(x, y)) {
+                drawRect(color, topLeft = Offset(x, y), size = Size(width, height))
+            }
+            1 -> drawCircle(color, radius = width * 0.42f, center = Offset(x, y))
+            else -> {
+                val path = Path().apply {
+                    moveTo(x, y)
+                    lineTo(x + width, y + height * 0.22f)
+                    lineTo(x + width * 0.62f, y + height)
+                    lineTo(x - width * 0.18f, y + height * 0.64f)
+                    close()
+                }
+                drawPath(path, color)
+            }
+        }
+    }
+}
+
+private suspend fun loadBitmap(url: String): Bitmap? = withContext(Dispatchers.IO) {
+    runCatching {
+        val connection = URI(url).toURL().openConnection() as HttpURLConnection
+        try {
+            connection.connectTimeout = 8_000
+            connection.readTimeout = 8_000
+            connection.setRequestProperty("User-Agent", "WeatherMetroApp/1.0 (Android)")
+            if (connection.responseCode !in 200..299) return@runCatching null
+            connection.inputStream.use(BitmapFactory::decodeStream)
+        } finally {
+            connection.disconnect()
+        }
+    }.getOrNull()
+}
