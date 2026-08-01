@@ -18,16 +18,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,7 +44,6 @@ import com.weather.metro.ui.theme.LocalMetroSubText
 import com.weather.metro.ui.theme.LocalPatternIntensity
 import com.weather.metro.ui.theme.LocalReduceMotion
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URI
@@ -72,7 +67,7 @@ fun MetroTile(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     contentPadding: androidx.compose.foundation.layout.PaddingValues =
-        androidx.compose.foundation.layout.PaddingValues(18.dp),
+        androidx.compose.foundation.layout.PaddingValues(14.dp),
     content: @Composable BoxScope.() -> Unit,
 ) {
     val patternIntensity = LocalPatternIntensity.current
@@ -102,30 +97,23 @@ fun ExpandableMetroTile(
     collapsed: @Composable ColumnScope.() -> Unit,
     expandedContent: @Composable ColumnScope.() -> Unit,
 ) {
-    val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val reduceMotion = LocalReduceMotion.current
-    LaunchedEffect(expanded) {
-        if (expanded) {
-            if (!reduceMotion) delay(220)
-            bringIntoViewRequester.bringIntoView()
-        }
-    }
     MetroTile(
         seed = seed,
         background = background,
         onClick = { onExpandedChange(!expanded) },
-        modifier = modifier.bringIntoViewRequester(bringIntoViewRequester),
+        modifier = modifier,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .animateContentSize(tween(if (reduceMotion) 1 else 520)),
+                .animateContentSize(tween(if (reduceMotion) 1 else 420)),
         ) {
             collapsed()
             if (expanded) {
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(10.dp))
                 HorizontalDivider(color = Color.White.copy(alpha = 0.28f))
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(8.dp))
                 expandedContent()
             }
         }
@@ -142,18 +130,18 @@ fun MetroStat(
     Column(
         modifier = modifier
             .background(Color.Black.copy(alpha = 0.16f))
-            .padding(12.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
         Text(
             text = label,
             color = Color.White.copy(alpha = 0.76f),
-            fontSize = 12.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
         )
-        Spacer(Modifier.height(5.dp))
-        Text(text = value, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Light)
+        Spacer(Modifier.height(2.dp))
+        Text(text = value, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Light)
         if (secondary) {
-            Text(text = "secondary estimate", color = Color.White.copy(alpha = 0.62f), fontSize = 9.sp)
+            Text(text = "secondary estimate", color = Color.White.copy(alpha = 0.62f), fontSize = 8.sp)
         }
     }
 }
@@ -182,10 +170,9 @@ fun HkoRemoteImage(
 }
 
 @Composable
-fun MetroProgress(modifier: Modifier = Modifier) {
-    val accent = MaterialTheme.colorScheme.primary
+fun MetroProgress(modifier: Modifier = Modifier, colour: Color = MaterialTheme.colorScheme.primary) {
     Canvas(modifier = modifier.fillMaxWidth().height(4.dp)) {
-        drawRect(accent, size = Size(size.width * 0.36f, size.height))
+        drawRect(colour, size = Size(size.width * 0.36f, size.height))
     }
 }
 

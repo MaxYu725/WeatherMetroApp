@@ -9,6 +9,7 @@ import com.weather.metro.data.WeatherRepository
 import com.weather.metro.data.cache.WeatherCache
 import com.weather.metro.data.hko.HkoClient
 import com.weather.metro.data.location.LocationRepository
+import com.weather.metro.data.settings.PageColourSlot
 import com.weather.metro.data.settings.SettingsRepository
 import com.weather.metro.data.settings.UiSettings
 import com.weather.metro.domain.WeatherLoadState
@@ -16,8 +17,6 @@ import com.weather.metro.notification.NotificationChannels
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 
 class WeatherViewModel(application: Application) : AndroidViewModel(application) {
@@ -30,11 +29,7 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
 
     private val _loadState = MutableStateFlow<WeatherLoadState>(WeatherLoadState.Loading)
     val loadState: StateFlow<WeatherLoadState> = _loadState.asStateFlow()
-    val settings: StateFlow<UiSettings> = settingsRepository.settings.stateIn(
-        viewModelScope,
-        SharingStarted.Eagerly,
-        settingsRepository.settings.value,
-    )
+    val settings: StateFlow<UiSettings> = settingsRepository.settings
 
     init {
         viewModelScope.launch {
@@ -62,7 +57,7 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
 
     fun hasLocationPermission(): Boolean = weatherRepository.hasLocationPermission()
 
-    fun setAccent(value: Long) = settingsRepository.setAccent(value)
+    fun setPageColour(slot: PageColourSlot, value: Long) = settingsRepository.setPageColour(slot, value)
     fun setTextScale(value: Float) = settingsRepository.setTextScale(value)
     fun setPatternIntensity(value: Float) = settingsRepository.setPatternIntensity(value)
     fun setReduceMotion(value: Boolean) = settingsRepository.setReduceMotion(value)

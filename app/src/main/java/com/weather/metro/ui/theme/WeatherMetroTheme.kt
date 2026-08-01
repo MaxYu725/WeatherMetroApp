@@ -22,7 +22,7 @@ val LocalReduceMotion = staticCompositionLocalOf { false }
 
 @Composable
 fun WeatherMetroTheme(settings: UiSettings, content: @Composable () -> Unit) {
-    val accent = argbColor(settings.accentArgb)
+    val accent = argbColor(settings.pageColours.currentArgb)
     val subText = if (settings.highContrast) Color.White else Color(0xFFAAAAAA)
     val systemDensity = LocalDensity.current
     val scaledDensity = Density(
@@ -51,6 +51,17 @@ fun WeatherMetroTheme(settings: UiSettings, content: @Composable () -> Unit) {
         MaterialTheme(
             colorScheme = scheme,
             typography = metroTypography(),
+            content = content,
+        )
+    }
+}
+
+@Composable
+fun MetroPageTheme(accent: Color, content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalMetroAccent provides accent) {
+        MaterialTheme(
+            colorScheme = MaterialTheme.colorScheme.copy(primary = accent, onPrimary = Color.White),
+            typography = MaterialTheme.typography,
             content = content,
         )
     }
