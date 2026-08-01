@@ -1,0 +1,99 @@
+package com.weather.metro.ui
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.google.firebase.messaging.FirebaseMessaging
+import com.weather.metro.data.RefreshResult
+import com.weather.metro.data.WeatherRepository
+import com.weather.metro.data.cache.WeatherCache
+import com.weather.metro.data.hko.HkoClient
+import com.weather.metro.data.location.LocationRepository
+import com.weather.metro.data.settings.SettingsRepository
+import com.weather.metro.data.settings.UiSettings
+import com.weather.metro.domain.WeatherLoadState
+import com.weather.metro.notification.NotificationChannels
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.launch
+
+class WeatherViewModel(application: Application) : AndroidViewModel(application) {
+    private val settingsRepository = SettingsRepository(application)
+    private val weatherRepository = WeatherRepository(
+        hkoClient = HkoClient(),
+        locationRepository = LocationRepository(application),
+        cache = WeatherCache(application),
+    )
+
+    private val _loadState = MutableStateFlow<WeatherLoadState>(WeatherLoadState.Loading)
+    val loadState: StateFlow<WeatherLoadState> = _loadState.asStateFlow()
+    val settings: StateFlow<UiSettings> = settingsRepository.settings.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        settingsRepository.settings.value,
+    )
+
+    init {
+        viewModelScope.launch {
+            val cached = weatherRepository.cached()
+            if (cached != null) _loadState.value = WeatherLoadState.Ready(cached, refreshing = true)
+            refresh()
+        }
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            val existing = (_loadState.value as? WeatherLoadState.Ready)?.snapshot
+            if (existing != null) _loadState.value = WeatherLoadState.Ready(existing, refreshing = true)
+            else _loadState.value = WeatherLoadState.Loading
+            runCatching {
+                weatherRepository.refresh(settings.value.preciseLocation)
+            }.onSuccess(::showResult).onFailure { error ->
+                _loadState.value = WeatherLoadState.Error(
+                    message = error.message ?: "未能取得天氣資料",
+                    cached = existing,
+                )
+            }
+        }
+    }
+
+    fun hasLocationPermission(): Boolean = weatherRepository.hasLocationPermission()
+
+    fun setAccent(value: Long) = settingsRepository.setAccent(value)
+    fun setTextScale(value: Float) = settingsRepository.setTextScale(value)
+    fun setPatternIntensity(value: Float) = settingsRepository.setPatternIntensity(value)
+    fun setReduceMotion(value: Boolean) = settingsRepository.setReduceMotion(value)
+    fun setHighContrast(value: Boolean) = settingsRepository.setHighContrast(value)
+
+    fun setPreciseLocation(value: Boolean) {
+        settingsRepository.setPreciseLocation(value)
+        refresh()
+    }
+
+    fun setNotificationsEnabled(value: Boolean) {
+        settingsRepository.setNotificationsEnabled(value)
+        val messaging = FirebaseMessaging.getInstance()
+        if (value) messaging.subscribeToTopic(NotificationChannels.TOPIC_PRODUCTION)
+        else messaging.unsubscribeFromTopic(NotificationChannels.TOPIC_PRODUCTION)
+    }
+
+    fun subscribeIfEnabled() {
+        if (settings.value.notificationsEnabled) {
+            FirebaseMessaging.getInstance().subscribeToTopic(NotificationChannels.TOPIC_PRODUCTION)
+        }
+    }
+
+    fun clearCache() {
+        viewModelScope.launch {
+            weatherRepository.clearCache()
+            refresh()
+        }
+    }
+
+    private fun showResult(result: RefreshResult) {
+        _loadState.value = WeatherLoadState.Ready(result.snapshot)
+    }
+}

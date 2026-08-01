@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "177524979994",
+    "project_id": "weathermetropush",
+    "storage_bucket": "weathermetropush.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:177524979994:android:6a4b913eddfb0125b154a3",
+        "android_client_info": {
+          "package_name": "com.weather.metro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBs_1DSKsbhjzfCzwKOjQQwYQ2oVSwuqoA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
