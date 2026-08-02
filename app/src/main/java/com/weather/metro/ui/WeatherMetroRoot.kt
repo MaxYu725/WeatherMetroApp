@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -57,6 +58,7 @@ fun WeatherMetroRoot(
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val loadState by viewModel.loadState.collectAsStateWithLifecycle()
+    val navigationRequest by viewModel.navigationRequest.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         if (settings.preciseLocation && !viewModel.hasLocationPermission()) {
@@ -72,6 +74,23 @@ fun WeatherMetroRoot(
         val pageIndex = pagerState.currentPage.mod(pages.size)
         val activePageColour = argbColor(settings.pageColours.colour(pages[pageIndex]))
         val reduceMotion = LocalReduceMotion.current
+        val pagerFlingBehavior = PagerDefaults.flingBehavior(
+            state = pagerState,
+            snapAnimationSpec = tween(durationMillis = if (reduceMotion) 1 else 520),
+        )
+
+        LaunchedEffect(navigationRequest?.token) {
+            val request = navigationRequest ?: return@LaunchedEffect
+            val destinationIndex = pages.indexOf(request.page)
+            val currentIndex = pagerState.currentPage.mod(pages.size)
+            var delta = destinationIndex - currentIndex
+            if (delta > pages.size / 2) delta -= pages.size
+            if (delta < -pages.size / 2) delta += pages.size
+            val destinationPage = pagerState.currentPage + delta
+            if (reduceMotion) pagerState.scrollToPage(destinationPage)
+            else pagerState.animateScrollToPage(destinationPage, animationSpec = tween(520))
+            if (!request.showAlerts) viewModel.consumeNavigation(request.token)
+        }
 
         Column(
             modifier = Modifier
@@ -97,6 +116,7 @@ fun WeatherMetroRoot(
                 state = pagerState,
                 beyondViewportPageCount = 1,
                 key = { it },
+                flingBehavior = pagerFlingBehavior,
                 modifier = Modifier.fillMaxSize(),
             ) { virtualPage ->
                 val index = virtualPage.mod(pages.size)
@@ -115,6 +135,10 @@ fun WeatherMetroRoot(
                                 pageColour = pageColour,
                                 onRefresh = viewModel::refresh,
                                 onRequestLocation = requestLocationPermission,
+                                navigationRequest = navigationRequest?.takeIf {
+                                    it.page == PageColourSlot.CURRENT && it.showAlerts
+                                },
+                                onNavigationHandled = viewModel::consumeNavigation,
                             )
                             PageColourSlot.HOURLY -> HourlyScreen(state.snapshot.hourly, pageColour)
                             PageColourSlot.FORECAST -> ForecastScreen(state.snapshot, pageColour)
@@ -155,7 +179,7 @@ private fun PivotHeader(current: String, next: String, reduceMotion: Boolean) {
             targetState = current to next,
             transitionSpec = {
                 if (reduceMotion) fadeIn(tween(1)) togetherWith fadeOut(tween(1))
-                else fadeIn(tween(260)) togetherWith fadeOut(tween(180))
+                else fadeIn(tween(420)) togetherWith fadeOut(tween(320))
             },
             label = "pivot header",
         ) { (active, upcoming) ->

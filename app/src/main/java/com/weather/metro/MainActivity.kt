@@ -1,6 +1,7 @@
 package com.weather.metro
 
 import android.Manifest
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -34,6 +35,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         enterImmersiveMode()
+        viewModel.handleDeepLink(intent?.data)
         setContent {
             WeatherMetroRoot(
                 viewModel = viewModel,
@@ -41,6 +43,12 @@ class MainActivity : ComponentActivity() {
                 requestNotificationPermission = ::requestNotificationPermission,
             )
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        viewModel.handleDeepLink(intent.data)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

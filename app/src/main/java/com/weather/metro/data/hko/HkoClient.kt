@@ -5,10 +5,11 @@ import com.weather.metro.domain.AstronomyInfo
 import com.weather.metro.domain.CurrentConditions
 import com.weather.metro.domain.DailyForecast
 import com.weather.metro.domain.HourlyWeather
+import com.weather.metro.domain.LocalForecast
 import com.weather.metro.domain.LocationInfo
+import com.weather.metro.domain.NineDayForecast
 import com.weather.metro.domain.TideEvent
 import com.weather.metro.domain.WeatherAlert
-import com.weather.metro.domain.WeatherOverview
 import com.weather.metro.domain.WeatherSnapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -89,8 +90,8 @@ class HkoClient {
                 raw.optJSONObject("swt") ?: JSONObject(),
             ),
             hourly = parseHourly(openMeteo),
-            daily = parseDaily(fnd),
-            overview = parseOverview(flw),
+            localForecast = parseLocalForecast(flw),
+            nineDayForecast = parseNineDayForecast(fnd),
             astronomy = parseAstronomy(
                 raw.optJSONObject("sun"),
                 raw.optJSONObject("moon"),
@@ -270,7 +271,7 @@ class HkoClient {
         }
     }
 
-    private fun parseOverview(flw: JSONObject) = WeatherOverview(
+    private fun parseLocalForecast(flw: JSONObject) = LocalForecast(
         generalSituation = flw.optString("generalSituation"),
         forecastPeriod = flw.optString("forecastPeriod"),
         forecastDescription = flw.optString("forecastDesc"),
@@ -278,6 +279,12 @@ class HkoClient {
         tropicalCycloneInfo = flw.optString("tcInfo"),
         fireDangerWarning = flw.optString("fireDangerWarning"),
         updatedAt = flw.optString("updateTime"),
+    )
+
+    private fun parseNineDayForecast(fnd: JSONObject) = NineDayForecast(
+        generalSituation = fnd.optString("generalSituation"),
+        days = parseDaily(fnd),
+        updatedAt = fnd.optString("updateTime"),
     )
 
     private fun parseAstronomy(
@@ -470,9 +477,7 @@ object WarningNormalizer {
 
     private fun warningName(code: String): String = WARNING_NAMES[code] ?: "天氣警告"
 
-    private fun warningIconUrl(code: String): String? = OFFICIAL_WARNING_ICON_FILES[code]?.let {
-        "https://www.hko.gov.hk/images/HKOWarningSymbols/$it"
-    }
+    private fun warningIconUrl(code: String): String? = OFFICIAL_WARNING_ICON_URLS[code]
 
     private fun String.stableHash(): String = hashCode().toUInt().toString(16)
 
@@ -500,22 +505,35 @@ object WarningNormalizer {
         "WTMW" to "海嘯警告",
         "WFNTSA" to "新界北部水浸特別報告",
     )
-    // Filenames are taken from HKO's current public homepage script. Alerts
-    // without a published symbol in that mapping intentionally use the local
-    // vector fallback instead of guessing an unstable URL.
-    private val OFFICIAL_WARNING_ICON_FILES = mapOf(
-        "WRAINA" to "warn800_09_rain%20amber.png",
-        "WRAINR" to "warn800_10_rain%20red.png",
-        "WRAINB" to "warn800_11_rain%20black.png",
-        "TC1" to "warn800_01_tc1.png",
-        "TC3" to "warn800_02_tc3.png",
-        "TC8NE" to "warn800_03_tc08ne.png",
-        "TC8NW" to "warn800_04_tc08nw.png",
-        "TC8SE" to "warn800_05_tc08se.png",
-        "TC8SW" to "warn800_06_tc08sw.png",
-        "TC9" to "warn800_07_tc09.png",
-        "TC10" to "warn800_08_tc10.png",
-    )
+    private const val OFFICIAL_WARNING_ICON_BASE =
+        "https://www.hko.gov.hk/tc/wxinfo/dailywx/images/"
+    private val OFFICIAL_WARNING_ICON_URLS = mapOf(
+        "WHOT" to "vhot.gif",
+        "WRAINA" to "raina.gif",
+        "WRAINR" to "rainr.gif",
+        "WRAINB" to "rainb.gif",
+        "TC1" to "tc1.gif",
+        "TC3" to "tc3.gif",
+        "TC8SE" to "tc8b.gif",
+        "TC8SW" to "tc8c.gif",
+        "TC8NE" to "tc8ne.gif",
+        "TC8NW" to "tc8d.gif",
+        "TC9" to "tc9.gif",
+        "TC10" to "tc10.gif",
+        "WTS" to "ts.gif",
+        "WFNW" to "ntfl.gif",
+        "WFNTSA" to "ntfl.gif",
+        "WL" to "landslip.gif",
+        "WCOLD" to "cold.gif",
+        "WMSGN" to "sms.gif",
+        "WMSGNL" to "sms.gif",
+        "WFROST" to "frost.gif",
+        "WFIRER" to "firer.gif",
+        "WFIREY" to "firey.gif",
+        "WTMW" to "tsunami-warn.gif",
+    ).mapValues { (_, fileName) ->
+        OFFICIAL_WARNING_ICON_BASE + fileName
+    }
 }
 
 private fun LocationInfo.toJson() = JSONObject()

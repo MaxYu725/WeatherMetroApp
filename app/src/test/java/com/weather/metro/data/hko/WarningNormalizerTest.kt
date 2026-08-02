@@ -35,7 +35,23 @@ class WarningNormalizerTest {
         assertEquals("WRAINR", alert.code)
         assertEquals(AlertSeverity.URGENT, alert.severity)
         assertTrue(alert.content.contains("新界部分地區"))
-        assertTrue(alert.iconUrl.orEmpty().contains("warn800_10"))
+        assertTrue(alert.iconUrl.orEmpty().endsWith("rainr.gif"))
+    }
+
+    @Test
+    fun `thunderstorm warning uses the official HKO symbol`() {
+        val summary = JSONObject().put(
+            "WTS",
+            JSONObject()
+                .put("code", "WTS")
+                .put("type", "雷暴警告")
+                .put("actionCode", "ISSUE"),
+        )
+
+        val alert = WarningNormalizer.normalize(summary, JSONObject(), JSONObject()).single()
+
+        assertEquals("WTS", alert.code)
+        assertTrue(alert.iconUrl.orEmpty().endsWith("ts.gif"))
     }
 
     @Test

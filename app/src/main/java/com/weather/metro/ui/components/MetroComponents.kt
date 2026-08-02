@@ -67,7 +67,7 @@ fun MetroTile(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     contentPadding: androidx.compose.foundation.layout.PaddingValues =
-        androidx.compose.foundation.layout.PaddingValues(14.dp),
+        androidx.compose.foundation.layout.PaddingValues(12.dp),
     content: @Composable BoxScope.() -> Unit,
 ) {
     val patternIntensity = LocalPatternIntensity.current
@@ -107,13 +107,13 @@ fun ExpandableMetroTile(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .animateContentSize(tween(if (reduceMotion) 1 else 420)),
+                .animateContentSize(tween(if (reduceMotion) 1 else 620)),
         ) {
             collapsed()
             if (expanded) {
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(6.dp))
                 HorizontalDivider(color = Color.White.copy(alpha = 0.28f))
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 expandedContent()
             }
         }
@@ -130,18 +130,24 @@ fun MetroStat(
     Column(
         modifier = modifier
             .background(Color.Black.copy(alpha = 0.16f))
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(horizontal = 9.dp, vertical = 5.dp),
     ) {
         Text(
             text = label,
             color = Color.White.copy(alpha = 0.76f),
-            fontSize = 11.sp,
+            fontSize = 10.sp,
+            lineHeight = 12.sp,
             fontWeight = FontWeight.SemiBold,
         )
-        Spacer(Modifier.height(2.dp))
-        Text(text = value, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Light)
+        Spacer(Modifier.height(1.dp))
+        Text(text = value, color = Color.White, fontSize = 15.sp, lineHeight = 18.sp, fontWeight = FontWeight.Light)
         if (secondary) {
-            Text(text = "secondary estimate", color = Color.White.copy(alpha = 0.62f), fontSize = 8.sp)
+            Text(
+                text = "secondary estimate",
+                color = Color.White.copy(alpha = 0.62f),
+                fontSize = 7.sp,
+                lineHeight = 9.sp,
+            )
         }
     }
 }

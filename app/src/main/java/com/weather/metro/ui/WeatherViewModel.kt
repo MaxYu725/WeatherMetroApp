@@ -1,6 +1,7 @@
 package com.weather.metro.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.messaging.FirebaseMessaging
@@ -19,6 +20,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+data class AppNavigationRequest(
+    val page: PageColourSlot,
+    val showAlerts: Boolean,
+    val alertId: String?,
+    val alertCode: String?,
+    val eventKind: String?,
+    val token: Long = System.nanoTime(),
+)
+
 class WeatherViewModel(application: Application) : AndroidViewModel(application) {
     private val settingsRepository = SettingsRepository(application)
     private val weatherRepository = WeatherRepository(
@@ -30,6 +40,8 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
     private val _loadState = MutableStateFlow<WeatherLoadState>(WeatherLoadState.Loading)
     val loadState: StateFlow<WeatherLoadState> = _loadState.asStateFlow()
     val settings: StateFlow<UiSettings> = settingsRepository.settings
+    private val _navigationRequest = MutableStateFlow<AppNavigationRequest?>(null)
+    val navigationRequest: StateFlow<AppNavigationRequest?> = _navigationRequest.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -79,6 +91,24 @@ class WeatherViewModel(application: Application) : AndroidViewModel(application)
         if (settings.value.notificationsEnabled) {
             FirebaseMessaging.getInstance().subscribeToTopic(NotificationChannels.TOPIC_PRODUCTION)
         }
+    }
+
+    fun handleDeepLink(uri: Uri?) {
+        if (uri?.scheme != "weathermetro") return
+        val page = PageColourSlot.entries.firstOrNull { it.label == uri.host }
+            ?: PageColourSlot.CURRENT
+        _navigationRequest.value = AppNavigationRequest(
+            page = page,
+            showAlerts = uri.pathSegments.firstOrNull() == "alerts",
+            alertId = uri.getQueryParameter("alertId"),
+            alertCode = uri.getQueryParameter("code"),
+            eventKind = uri.getQueryParameter("kind")?.uppercase(),
+        )
+        refresh()
+    }
+
+    fun consumeNavigation(token: Long) {
+        if (_navigationRequest.value?.token == token) _navigationRequest.value = null
     }
 
     fun clearCache() {
