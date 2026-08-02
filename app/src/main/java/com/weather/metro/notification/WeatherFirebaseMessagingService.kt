@@ -5,10 +5,10 @@ import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -32,25 +32,33 @@ class WeatherFirebaseMessagingService : FirebaseMessagingService() {
         val body = message.notification?.body ?: data["body"] ?: return
         val channel = data["channel"] ?: NotificationChannels.GENERAL
         val target = data["target"] ?: "weathermetro://current"
+        val alertId = data["alertId"].orEmpty()
+        val notificationKey = alertId.ifBlank { eventId }
 
         val intent = Intent(this, MainActivity::class.java).apply {
             action = Intent.ACTION_VIEW
-            this.data = Uri.parse(target)
+            this.data = target.toUri()
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
         val pendingIntent = PendingIntent.getActivity(
             this,
-            eventId.hashCode(),
+            notificationKey.hashCode(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val notification = NotificationCompat.Builder(this, channel)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setContentText(body.lineSequence().firstOrNull().orEmpty())
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .setBigContentTitle(title)
+                    .bigText(body)
+                    .setSummaryText("香港天文台官方內容"),
+            )
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setPriority(
                 if (channel == NotificationChannels.URGENT) {
@@ -66,7 +74,7 @@ class WeatherFirebaseMessagingService : FirebaseMessagingService() {
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
         ) {
-            NotificationManagerCompat.from(this).notify(eventId.hashCode(), notification)
+            NotificationManagerCompat.from(this).notify(notificationKey.hashCode(), notification)
         }
     }
 }

@@ -75,13 +75,19 @@ data class DailyForecast(
     val description: String,
 )
 
-data class WeatherOverview(
+data class LocalForecast(
     val generalSituation: String = "",
     val forecastPeriod: String = "",
     val forecastDescription: String = "",
     val outlook: String = "",
     val tropicalCycloneInfo: String = "",
     val fireDangerWarning: String = "",
+    val updatedAt: String = "",
+)
+
+data class NineDayForecast(
+    val generalSituation: String = "",
+    val days: List<DailyForecast> = emptyList(),
     val updatedAt: String = "",
 )
 
@@ -108,8 +114,8 @@ data class WeatherSnapshot(
     val current: CurrentConditions = CurrentConditions(),
     val alerts: List<WeatherAlert> = emptyList(),
     val hourly: List<HourlyWeather> = emptyList(),
-    val daily: List<DailyForecast> = emptyList(),
-    val overview: WeatherOverview = WeatherOverview(),
+    val localForecast: LocalForecast = LocalForecast(),
+    val nineDayForecast: NineDayForecast = NineDayForecast(),
     val astronomy: AstronomyInfo = AstronomyInfo(),
     val fetchedAtEpochMillis: Long = System.currentTimeMillis(),
     val isStale: Boolean = false,

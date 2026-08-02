@@ -17,9 +17,10 @@ class HkoClientIntegrationTest {
         assertEquals("香港天文台", snapshot.location.stationName)
         assertTrue(snapshot.current.temperatureC != null)
         assertTrue(snapshot.current.weatherIconCode != null)
-        assertTrue(snapshot.daily.size >= 7)
+        assertTrue(snapshot.nineDayForecast.days.size >= 7)
         assertTrue(snapshot.hourly.isNotEmpty())
-        assertTrue(snapshot.overview.generalSituation.isNotBlank())
+        assertTrue(snapshot.nineDayForecast.generalSituation.isNotBlank())
+        assertTrue(snapshot.localForecast.forecastDescription.isNotBlank())
         assertTrue(snapshot.fetchedAtEpochMillis > 0)
     }
 }

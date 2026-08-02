@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.math.roundToInt
 
 enum class PageColourSlot(val label: String) {
     CURRENT("current"),
@@ -67,12 +68,12 @@ class SettingsRepository(context: Context) {
     }
 
     fun setTextScale(value: Float) {
-        val coerced = value.coerceIn(0.85f, 1.5f)
+        val coerced = quantizeTextScale(value)
         update(_settings.value.copy(textScale = coerced)) { putFloat(KEY_TEXT_SCALE, coerced) }
     }
 
     fun setPatternIntensity(value: Float) {
-        val coerced = value.coerceIn(0f, 0.32f)
+        val coerced = quantizePatternIntensity(value)
         update(_settings.value.copy(patternIntensity = coerced)) { putFloat(KEY_PATTERN, coerced) }
     }
 
@@ -99,8 +100,8 @@ class SettingsRepository(context: Context) {
             toolsArgb = preferences.getLong(KEY_TOOLS_COLOUR, DefaultPageColours.TOOLS),
             settingsArgb = preferences.getLong(KEY_SETTINGS_COLOUR, DefaultPageColours.SETTINGS),
         ),
-        textScale = preferences.getFloat(KEY_TEXT_SCALE, 1f),
-        patternIntensity = preferences.getFloat(KEY_PATTERN, 0.18f),
+        textScale = quantizeTextScale(preferences.getFloat(KEY_TEXT_SCALE, 1f)),
+        patternIntensity = quantizePatternIntensity(preferences.getFloat(KEY_PATTERN, 0.18f)),
         reduceMotion = preferences.getBoolean(KEY_REDUCE_MOTION, false),
         highContrast = preferences.getBoolean(KEY_HIGH_CONTRAST, false),
         preciseLocation = preferences.getBoolean(KEY_PRECISE_LOCATION, true),
@@ -122,6 +123,14 @@ class SettingsRepository(context: Context) {
         PageColourSlot.FORECAST -> KEY_FORECAST_COLOUR
         PageColourSlot.TOOLS -> KEY_TOOLS_COLOUR
         PageColourSlot.SETTINGS -> KEY_SETTINGS_COLOUR
+    }
+
+    private fun quantizeTextScale(value: Float): Float =
+        ((value.coerceIn(0.9f, 1.5f) * 10f).roundToInt() / 10f)
+
+    private fun quantizePatternIntensity(value: Float): Float {
+        val percentStep = ((value.coerceIn(0f, 0.32f) / 0.32f) * 10f).roundToInt()
+        return percentStep / 10f * 0.32f
     }
 
     companion object {

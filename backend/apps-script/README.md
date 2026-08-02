@@ -3,6 +3,8 @@
 This folder contains the server-side five-minute HKO alert monitor. It uses the
 official `warnsum`, `warningInfo`, and `swt` endpoints, stores a stable state
 snapshot, and sends only issue/update/cancel changes through FCM HTTP v1.
+Notifications are data-only so Android always builds the expandable notification
+with the complete HKO message and routes taps to the matching alert tile.
 
 ## One-time owner setup
 
@@ -19,6 +21,10 @@ snapshot, and sends only issue/update/cancel changes through FCM HTTP v1.
 
 The first `checkWeatherUpdates` run silently records the current HKO state, so
 deploying the monitor does not resend every alert already in force.
+
+After replacing an older `Code.gs` with this version, the `HKO_ALERT_STATE_V3`
+key intentionally creates one new silent baseline. The monitor no longer treats
+an unchanged warning's `updateTime` as a content update.
 
 ## Operations
 

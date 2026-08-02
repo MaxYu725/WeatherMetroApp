@@ -9,7 +9,7 @@
 
 const CONFIG = Object.freeze({
   topic: 'hko_alerts',
-  stateKey: 'HKO_ALERT_STATE_V2',
+  stateKey: 'HKO_ALERT_STATE_V3',
   triggerFunction: 'checkWeatherUpdates',
   hkoBase: 'https://data.weather.gov.hk/weatherAPI/opendata/weather.php',
   tokenUrl: 'https://oauth2.googleapis.com/token',
@@ -66,7 +66,7 @@ function checkWeatherUpdates() {
       return;
     }
 
-    groupEvents_(events).forEach(sendEventGroup_);
+    events.forEach(sendEvent_);
     properties.setProperty(CONFIG.stateKey, JSON.stringify(current));
     console.log('Sent ' + events.length + ' HKO alert change(s).');
   } finally {
@@ -137,7 +137,7 @@ function normaliseState_(summary, detailPayload, tipPayload) {
       updatedAt: updatedAt,
       severity: severity_(code, false),
       isTip: false,
-      fingerprint: digest_([code, title, content, updatedAt].join('|')),
+      fingerprint: digest_([code, title, content].join('|')),
     };
   });
 
@@ -155,7 +155,7 @@ function normaliseState_(summary, detailPayload, tipPayload) {
       updatedAt: updatedAt,
       severity: severity_(body, true),
       isTip: true,
-      fingerprint: digest_([body, updatedAt].join('|')),
+      fingerprint: digest_(body),
     };
   });
   return state;
@@ -176,36 +176,23 @@ function diffStates_(previous, current) {
   return events;
 }
 
-function groupEvents_(events) {
-  const groups = {};
-  events.forEach(function (event) {
-    const channel = channelFor_(event.item.severity, event.item.isTip);
-    if (!groups[channel]) groups[channel] = [];
-    groups[channel].push(event);
-  });
-  return Object.keys(groups).map(function (channel) {
-    return { channel: channel, events: groups[channel] };
-  });
-}
-
-function sendEventGroup_(group) {
-  const highest = group.events.reduce(function (best, event) {
-    return severityRank_(event.item.severity) < severityRank_(best) ? event.item.severity : best;
-  }, 'TIP');
-  const lines = group.events.map(function (event) {
-    const prefix = event.kind === 'CANCEL' ? '已取消' : event.kind === 'UPDATE' ? '已更新' : '已發出';
-    return prefix + '：' + event.item.title;
-  });
-  const eventId = 'hko:' + digest_(group.events.map(function (event) {
-    return event.kind + ':' + event.item.id + ':' + event.item.fingerprint;
-  }).join('|'));
-
+function sendEvent_(event) {
+  const item = event.item;
+  const prefix = event.kind === 'CANCEL' ? '已取消' : event.kind === 'UPDATE' ? '已更新' : '已發出';
+  const eventId = 'hko:' + digest_([event.kind, item.id, item.fingerprint].join('|'));
+  const target = 'weathermetro://current/alerts' +
+    '?alertId=' + encodeURIComponent(item.id) +
+    '&code=' + encodeURIComponent(item.code) +
+    '&kind=' + encodeURIComponent(event.kind);
   sendFcm_({
-    title: highest === 'URGENT' ? '香港天文台緊急警告' : '香港天文台天氣更新',
-    body: lines.join('\n'),
-    channel: group.channel,
+    title: prefix + '：' + item.title,
+    body: item.body,
+    channel: channelFor_(item.severity, item.isTip),
     eventId: eventId,
-    target: 'weathermetro://current',
+    alertId: item.id,
+    alertCode: item.code,
+    eventKind: event.kind,
+    target: target,
   });
 }
 
@@ -216,22 +203,20 @@ function sendFcm_(message) {
   const payload = {
     message: {
       topic: CONFIG.topic,
-      notification: { title: message.title, body: message.body },
       data: {
         title: message.title,
         body: message.body,
         channel: message.channel,
         eventId: message.eventId,
+        alertId: message.alertId || '',
+        alertCode: message.alertCode || '',
+        eventKind: message.eventKind || '',
         target: message.target,
       },
       android: {
         priority: message.channel === 'weather_alert_urgent' ? 'HIGH' : 'NORMAL',
         ttl: '3600s',
-        notification: {
-          channel_id: message.channel,
-          tag: message.eventId,
-          default_vibrate_timings: message.channel === 'weather_alert_urgent',
-        },
+        collapse_key: message.alertId || message.eventId,
       },
     },
   };
@@ -307,10 +292,6 @@ function digest_(value) {
 
 function base64WebSafe_(value) {
   return Utilities.base64EncodeWebSafe(value, Utilities.Charset.UTF_8).replace(/=+$/, '');
-}
-
-function severityRank_(severity) {
-  return { URGENT: 0, WARNING: 1, ADVISORY: 2, TIP: 3 }[severity] || 3;
 }
 
 function channelFor_(severity, isTip) {
