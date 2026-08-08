@@ -3,6 +3,11 @@ package com.weather.metro.ui.components
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -177,8 +182,31 @@ fun HkoRemoteImage(
 
 @Composable
 fun MetroProgress(modifier: Modifier = Modifier, colour: Color = MaterialTheme.colorScheme.primary) {
-    Canvas(modifier = modifier.fillMaxWidth().height(4.dp)) {
-        drawRect(colour, size = Size(size.width * 0.36f, size.height))
+    val reduceMotion = LocalReduceMotion.current
+    val transition = rememberInfiniteTransition(label = "metro loading")
+    val animatedPhase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1_900, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "metro loading phase",
+    )
+    val phase = if (reduceMotion) 0.18f else animatedPhase
+    Canvas(modifier = modifier.fillMaxWidth().height(10.dp)) {
+        val radius = 3.dp.toPx()
+        val travel = size.width + radius * 2
+        repeat(5) { index ->
+            val dotPhase = (phase + index * 0.135f) % 1f
+            val x = dotPhase * travel - radius
+            val centreFade = 1f - kotlin.math.abs(dotPhase * 2f - 1f)
+            drawCircle(
+                color = colour.copy(alpha = 0.35f + centreFade * 0.65f),
+                radius = radius,
+                center = Offset(x, size.height / 2f),
+            )
+        }
     }
 }
 

@@ -38,7 +38,6 @@ import com.weather.metro.domain.WeatherLoadState
 import com.weather.metro.ui.components.MetroProgress
 import com.weather.metro.ui.screens.CurrentScreen
 import com.weather.metro.ui.screens.ForecastScreen
-import com.weather.metro.ui.screens.HourlyScreen
 import com.weather.metro.ui.screens.SettingsScreen
 import com.weather.metro.ui.screens.ToolsScreen
 import com.weather.metro.ui.theme.LocalMetroSubText
@@ -103,7 +102,7 @@ fun WeatherMetroRoot(
             ) {
                 MetroProgress(colour = activePageColour)
             } else {
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(10.dp))
             }
 
             PivotHeader(
@@ -133,6 +132,7 @@ fun WeatherMetroRoot(
                             PageColourSlot.CURRENT -> CurrentScreen(
                                 snapshot = state.snapshot,
                                 pageColour = pageColour,
+                                refreshing = state.refreshing,
                                 onRefresh = viewModel::refresh,
                                 onRequestLocation = requestLocationPermission,
                                 navigationRequest = navigationRequest?.takeIf {
@@ -140,7 +140,6 @@ fun WeatherMetroRoot(
                                 },
                                 onNavigationHandled = viewModel::consumeNavigation,
                             )
-                            PageColourSlot.HOURLY -> HourlyScreen(state.snapshot.hourly, pageColour)
                             PageColourSlot.FORECAST -> ForecastScreen(state.snapshot, pageColour)
                             PageColourSlot.TOOLS -> ToolsScreen(pageColour)
                             PageColourSlot.SETTINGS -> SettingsScreen(
@@ -211,7 +210,18 @@ private fun PivotHeader(current: String, next: String, reduceMotion: Boolean) {
 @Composable
 private fun LoadingPage() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("正在取得香港天文台資料…", color = LocalMetroSubText.current, fontWeight = FontWeight.Light)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(Modifier.width(220.dp)) {
+                MetroProgress()
+            }
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "正在取得香港天文台資料…",
+                color = LocalMetroSubText.current,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Light,
+            )
+        }
     }
 }
 

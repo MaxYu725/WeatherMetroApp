@@ -4,7 +4,6 @@ import com.weather.metro.domain.AlertSeverity
 import com.weather.metro.domain.AstronomyInfo
 import com.weather.metro.domain.CurrentConditions
 import com.weather.metro.domain.DailyForecast
-import com.weather.metro.domain.HourlyWeather
 import com.weather.metro.domain.LocalForecast
 import com.weather.metro.domain.LocationInfo
 import com.weather.metro.domain.NineDayForecast
@@ -23,10 +22,7 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.roundToInt
 
@@ -89,7 +85,6 @@ class HkoClient {
                 raw.getJSONObject("warningInfo"),
                 raw.optJSONObject("swt") ?: JSONObject(),
             ),
-            hourly = parseHourly(openMeteo),
             localForecast = parseLocalForecast(flw),
             nineDayForecast = parseNineDayForecast(fnd),
             astronomy = parseAstronomy(
@@ -131,21 +126,10 @@ class HkoClient {
             "wind_gusts_10m",
             "wind_direction_10m",
         ).joinToString(",")
-        val hourly = listOf(
-            "temperature_2m",
-            "relative_humidity_2m",
-            "apparent_temperature",
-            "precipitation_probability",
-            "precipitation",
-            "weather_code",
-            "wind_speed_10m",
-            "wind_direction_10m",
-            "uv_index",
-        ).joinToString(",")
         val daily = "temperature_2m_max,temperature_2m_min"
         return getJson(
             "$OPEN_METEO_URL?latitude=${location.latitude}&longitude=${location.longitude}" +
-                "&current=$current&hourly=$hourly&daily=$daily" +
+                "&current=$current&daily=$daily" +
                 "&timezone=Asia%2FHong_Kong&forecast_days=3",
         )
     }
@@ -216,37 +200,6 @@ class HkoClient {
         )
     }
 
-    private fun parseHourly(openMeteo: JSONObject): List<HourlyWeather> {
-        val hourly = openMeteo.optJSONObject("hourly") ?: return emptyList()
-        val times = hourly.optJSONArray("time") ?: return emptyList()
-        val now = System.currentTimeMillis() - 60 * 60 * 1000L
-        return buildList {
-            for (index in 0 until times.length()) {
-                val dateTime = runCatching {
-                    LocalDateTime.parse(times.getString(index)).atZone(HONG_KONG_ZONE)
-                }.getOrNull() ?: continue
-                val epoch = dateTime.toInstant().toEpochMilli()
-                if (epoch < now) continue
-                add(
-                    HourlyWeather(
-                        epochMillis = epoch,
-                        label = dateTime.format(DateTimeFormatter.ofPattern("ha", Locale.ENGLISH)).lowercase(),
-                        temperatureC = hourly.valueAt("temperature_2m", index),
-                        apparentTemperatureC = hourly.valueAt("apparent_temperature", index),
-                        humidityPercent = hourly.valueAt("relative_humidity_2m", index).roundToInt(),
-                        precipitationProbability = hourly.valueAt("precipitation_probability", index).roundToInt(),
-                        precipitationMm = hourly.valueAt("precipitation", index),
-                        weatherCode = hourly.valueAt("weather_code", index).roundToInt(),
-                        windDirection = windDirectionName(hourly.valueAt("wind_direction_10m", index)) ?: "--",
-                        windSpeedKmh = hourly.valueAt("wind_speed_10m", index).roundToInt(),
-                        uvIndex = hourly.valueAt("uv_index", index),
-                    ),
-                )
-                if (size == 24) break
-            }
-        }
-    }
-
     private fun parseDaily(fnd: JSONObject): List<DailyForecast> {
         val rows = fnd.optJSONArray("weatherForecast") ?: return emptyList()
         return buildList {
@@ -276,7 +229,8 @@ class HkoClient {
         forecastPeriod = flw.optString("forecastPeriod"),
         forecastDescription = flw.optString("forecastDesc"),
         outlook = flw.optString("outlook"),
-        tropicalCycloneInfo = flw.optString("tcInfo"),
+        tropicalCycloneInfo = flw.optString("tcInfo")
+            .ifBlank { flw.optString("tropicalCycloneInfo") },
         fireDangerWarning = flw.optString("fireDangerWarning"),
         updatedAt = flw.optString("updateTime"),
     )

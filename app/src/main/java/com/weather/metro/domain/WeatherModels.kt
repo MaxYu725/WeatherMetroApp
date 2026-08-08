@@ -48,20 +48,6 @@ data class WeatherAlert(
     val isTip: Boolean = false,
 )
 
-data class HourlyWeather(
-    val epochMillis: Long,
-    val label: String,
-    val temperatureC: Double,
-    val apparentTemperatureC: Double,
-    val humidityPercent: Int,
-    val precipitationProbability: Int,
-    val precipitationMm: Double,
-    val weatherCode: Int,
-    val windDirection: String,
-    val windSpeedKmh: Int,
-    val uvIndex: Double,
-)
-
 data class DailyForecast(
     val date: String,
     val weekday: String,
@@ -113,7 +99,6 @@ data class WeatherSnapshot(
     val location: LocationInfo = LocationInfo(),
     val current: CurrentConditions = CurrentConditions(),
     val alerts: List<WeatherAlert> = emptyList(),
-    val hourly: List<HourlyWeather> = emptyList(),
     val localForecast: LocalForecast = LocalForecast(),
     val nineDayForecast: NineDayForecast = NineDayForecast(),
     val astronomy: AstronomyInfo = AstronomyInfo(),

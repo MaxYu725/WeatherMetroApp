@@ -9,7 +9,6 @@ import kotlin.math.roundToInt
 
 enum class PageColourSlot(val label: String) {
     CURRENT("current"),
-    HOURLY("hourly"),
     FORECAST("forecast"),
     TOOLS("tools"),
     SETTINGS("settings"),
@@ -17,7 +16,6 @@ enum class PageColourSlot(val label: String) {
 
 object DefaultPageColours {
     const val CURRENT: Long = 0xFF1BA1E2
-    const val HOURLY: Long = 0xFF00A300
     const val FORECAST: Long = 0xFFA200FF
     const val TOOLS: Long = 0xFFF09609
     const val SETTINGS: Long = 0xFFE671B8
@@ -25,14 +23,12 @@ object DefaultPageColours {
 
 data class PageColours(
     val currentArgb: Long = DefaultPageColours.CURRENT,
-    val hourlyArgb: Long = DefaultPageColours.HOURLY,
     val forecastArgb: Long = DefaultPageColours.FORECAST,
     val toolsArgb: Long = DefaultPageColours.TOOLS,
     val settingsArgb: Long = DefaultPageColours.SETTINGS,
 ) {
     fun colour(slot: PageColourSlot): Long = when (slot) {
         PageColourSlot.CURRENT -> currentArgb
-        PageColourSlot.HOURLY -> hourlyArgb
         PageColourSlot.FORECAST -> forecastArgb
         PageColourSlot.TOOLS -> toolsArgb
         PageColourSlot.SETTINGS -> settingsArgb
@@ -40,7 +36,6 @@ data class PageColours(
 
     fun withColour(slot: PageColourSlot, argb: Long): PageColours = when (slot) {
         PageColourSlot.CURRENT -> copy(currentArgb = argb)
-        PageColourSlot.HOURLY -> copy(hourlyArgb = argb)
         PageColourSlot.FORECAST -> copy(forecastArgb = argb)
         PageColourSlot.TOOLS -> copy(toolsArgb = argb)
         PageColourSlot.SETTINGS -> copy(settingsArgb = argb)
@@ -95,7 +90,6 @@ class SettingsRepository(context: Context) {
                 KEY_CURRENT_COLOUR,
                 preferences.getLong(KEY_LEGACY_ACCENT, DefaultPageColours.CURRENT),
             ),
-            hourlyArgb = preferences.getLong(KEY_HOURLY_COLOUR, DefaultPageColours.HOURLY),
             forecastArgb = preferences.getLong(KEY_FORECAST_COLOUR, DefaultPageColours.FORECAST),
             toolsArgb = preferences.getLong(KEY_TOOLS_COLOUR, DefaultPageColours.TOOLS),
             settingsArgb = preferences.getLong(KEY_SETTINGS_COLOUR, DefaultPageColours.SETTINGS),
@@ -119,7 +113,6 @@ class SettingsRepository(context: Context) {
 
     private fun colourPreferenceKey(slot: PageColourSlot): String = when (slot) {
         PageColourSlot.CURRENT -> KEY_CURRENT_COLOUR
-        PageColourSlot.HOURLY -> KEY_HOURLY_COLOUR
         PageColourSlot.FORECAST -> KEY_FORECAST_COLOUR
         PageColourSlot.TOOLS -> KEY_TOOLS_COLOUR
         PageColourSlot.SETTINGS -> KEY_SETTINGS_COLOUR
@@ -137,7 +130,6 @@ class SettingsRepository(context: Context) {
         private const val PREFERENCES_NAME = "weather_metro_settings"
         private const val KEY_LEGACY_ACCENT = "accent"
         private const val KEY_CURRENT_COLOUR = "page_colour_current"
-        private const val KEY_HOURLY_COLOUR = "page_colour_hourly"
         private const val KEY_FORECAST_COLOUR = "page_colour_forecast"
         private const val KEY_TOOLS_COLOUR = "page_colour_tools"
         private const val KEY_SETTINGS_COLOUR = "page_colour_settings"

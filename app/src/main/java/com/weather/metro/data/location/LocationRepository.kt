@@ -43,18 +43,32 @@ class LocationRepository(private val context: Context) {
         } ?: return defaultLocation()
 
         val address = reverseGeocode(location.latitude, location.longitude)
-        val label = listOfNotNull(
+        val street = listOfNotNull(address?.subThoroughfare, address?.thoroughfare)
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+            .takeIf { it.isNotBlank() }
+        val districtHints = listOfNotNull(
+            address?.subAdminArea,
+            address?.adminArea,
             address?.subLocality,
-            address?.thoroughfare,
-            address?.featureName,
             address?.locality,
-        ).firstOrNull { it.isNotBlank() } ?: "本地位置"
-        val district = address?.subAdminArea ?: address?.adminArea ?: address?.locality
+        ).joinToString(" ")
+        val label = preferredLocationLabel(
+            candidates = listOf(
+                address?.premises,
+                street,
+                address?.thoroughfare,
+                address?.featureName,
+                address?.subLocality,
+                address?.locality,
+            ),
+            geocodedDistrict = districtHints,
+        )
         return HongKongStations.enrich(
             latitude = location.latitude,
             longitude = location.longitude,
             label = label,
-            geocodedDistrict = district,
+            geocodedDistrict = districtHints,
             accuracyMetres = location.accuracy.takeIf { it > 0 }?.roundToInt(),
         )
     }
