@@ -45,8 +45,8 @@ import com.weather.metro.data.settings.PageColourSlot
 import com.weather.metro.data.settings.UiSettings
 import com.weather.metro.domain.AlertSeverity
 import com.weather.metro.domain.AstronomyInfo
-import com.weather.metro.domain.HourlyWeather
 import com.weather.metro.domain.LocalForecast
+import com.weather.metro.domain.LocationInfo
 import com.weather.metro.domain.WeatherAlert
 import com.weather.metro.domain.WeatherSnapshot
 import com.weather.metro.ui.AppNavigationRequest
@@ -55,6 +55,7 @@ import com.weather.metro.ui.components.HkoRemoteImage
 import com.weather.metro.ui.components.MetroSectionLabel
 import com.weather.metro.ui.components.MetroStat
 import com.weather.metro.ui.components.MetroTile
+import com.weather.metro.ui.components.MetroProgress
 import com.weather.metro.ui.theme.LocalMetroSubText
 import com.weather.metro.ui.theme.LocalReduceMotion
 import com.weather.metro.ui.theme.argbColor
@@ -70,13 +71,14 @@ import kotlin.math.roundToInt
 fun CurrentScreen(
     snapshot: WeatherSnapshot,
     pageColour: Color,
+    refreshing: Boolean,
     onRefresh: () -> Unit,
     onRequestLocation: () -> Unit,
     navigationRequest: AppNavigationRequest?,
     onNavigationHandled: (Long) -> Unit,
 ) {
     var heroExpanded by remember { mutableStateOf(false) }
-    var overviewExpanded by remember { mutableStateOf(false) }
+    var localForecastExpanded by remember { mutableStateOf(false) }
     val current = snapshot.current
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -98,15 +100,28 @@ fun CurrentScreen(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(Modifier.size(8.dp).background(if (snapshot.isStale) Color(0xFFF09609) else Color(0xFF00C853)))
-                Spacer(Modifier.width(8.dp))
+                if (refreshing) {
+                    Box(Modifier.width(54.dp)) { MetroProgress(colour = pageColour) }
+                } else {
+                    Box(Modifier.size(8.dp).background(if (snapshot.isStale) Color(0xFFF09609) else Color(0xFF00C853)))
+                    Spacer(Modifier.width(8.dp))
+                }
                 Text(
-                    text = if (snapshot.isStale) "顯示離線快取" else "香港天文台資料已同步",
+                    text = when {
+                        refreshing -> "正在更新香港天文台資料"
+                        snapshot.isStale -> "顯示離線快取"
+                        else -> "香港天文台資料已同步"
+                    },
                     color = LocalMetroSubText.current,
                     fontSize = 12.sp,
                     modifier = Modifier.weight(1f),
                 )
-                Text("refresh", color = pageColour, fontSize = 13.sp, modifier = Modifier.clickable(onClick = onRefresh))
+                Text(
+                    if (refreshing) "updating" else "refresh",
+                    color = pageColour,
+                    fontSize = 13.sp,
+                    modifier = if (refreshing) Modifier else Modifier.clickable(onClick = onRefresh),
+                )
             }
         }
 
@@ -129,7 +144,7 @@ fun CurrentScreen(
                             fontWeight = FontWeight.Light,
                         )
                         Text(
-                            "${snapshot.location.district} · ${snapshot.location.stationName}",
+                            locationContextLine(snapshot.location),
                             color = Color.White.copy(alpha = 0.75f),
                             fontSize = 12.sp,
                         )
@@ -191,29 +206,38 @@ fun CurrentScreen(
 
         item {
             ExpandableMetroTile(
-                seed = "overview",
+                seed = "local-forecast",
                 background = pageColour,
-                expanded = overviewExpanded,
+                expanded = localForecastExpanded,
                 onExpandedChange = {
-                    overviewExpanded = it
+                    localForecastExpanded = it
                     if (it) scrollToItem(2)
                 },
                 collapsed = {
-                Text("天氣概況", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Light)
+                Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        "本港預報",
+                        color = Color.White,
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Light,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(if (localForecastExpanded) "−" else "+", color = Color.White, fontSize = 25.sp)
+                }
                 Spacer(Modifier.height(9.dp))
                 Text(
-                    snapshot.nineDayForecast.generalSituation.ifBlank { "香港天文台暫未提供概況。" },
+                    snapshot.localForecast.generalSituation
+                        .ifBlank { snapshot.localForecast.forecastDescription }
+                        .ifBlank { "香港天文台暫未提供本港預報。" },
                     color = Color.White,
-                    maxLines = if (overviewExpanded) Int.MAX_VALUE else 4,
+                    maxLines = if (localForecastExpanded) Int.MAX_VALUE else 4,
                     overflow = TextOverflow.Ellipsis,
                     fontSize = 15.sp,
                     lineHeight = 21.sp,
                 )
-                Text(formatHkoTime(snapshot.nineDayForecast.updatedAt), color = Color.White.copy(alpha = 0.72f), fontSize = 10.sp)
+                Text(formatHkoTime(snapshot.localForecast.updatedAt), color = Color.White.copy(alpha = 0.72f), fontSize = 10.sp)
                 },
-                expandedContent = {
-                Text("香港天文台九天預報概況", color = Color.White.copy(alpha = 0.75f), fontSize = 11.sp)
-                },
+                expandedContent = { LocalForecastDetails(snapshot.localForecast) },
             )
         }
 
@@ -407,110 +431,18 @@ private fun AlertDetailTile(alert: WeatherAlert) {
 }
 
 @Composable
-fun HourlyScreen(hourly: List<HourlyWeather>, pageColour: Color) {
-    val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
-    val reduceMotion = LocalReduceMotion.current
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 22.dp, end = 16.dp, bottom = 48.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        item { Text("Open-Meteo secondary estimate", color = LocalMetroSubText.current, fontSize = 11.sp) }
-        itemsIndexed(hourly, key = { _, item -> item.epochMillis }) { index, item ->
-            var expanded by remember(item.epochMillis) { mutableStateOf(false) }
-            ExpandableMetroTile(
-                seed = "hourly:${item.epochMillis}",
-                background = pageColour,
-                expanded = expanded,
-                onExpandedChange = {
-                    expanded = it
-                    if (it) {
-                        scope.launch {
-                            if (!reduceMotion) delay(150)
-                            listState.animateScrollToItem(index + 1)
-                        }
-                    }
-                },
-                collapsed = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(item.label, color = Color.White, fontSize = 22.sp, modifier = Modifier.width(72.dp))
-                    Text(wmoGlyph(item.weatherCode), color = Color.White, fontSize = 28.sp)
-                    Spacer(Modifier.weight(1f))
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("${item.temperatureC.roundToInt()}°", color = Color.White, fontSize = 29.sp, fontWeight = FontWeight.Light)
-                        Text(
-                            "雨 ${item.precipitationProbability}%",
-                            color = Color.White.copy(alpha = 0.78f),
-                            fontSize = 11.sp,
-                        )
-                    }
-                }
-                },
-                expandedContent = {
-                StatGrid(
-                    listOf(
-                        Triple("體感", "${item.apparentTemperatureC.roundToInt()}°C", true),
-                        Triple("濕度", "${item.humidityPercent}%", true),
-                        Triple("降水", "${item.precipitationMm} mm", true),
-                        Triple("降雨概率", "${item.precipitationProbability}%", true),
-                        Triple("風向風速", "${item.windDirection} ${item.windSpeedKmh} km/h", true),
-                        Triple("紫外線", item.uvIndex.toString(), true),
-                    ),
-                )
-                },
-            )
-        }
-    }
-}
-
-@Composable
 fun ForecastScreen(snapshot: WeatherSnapshot, pageColour: Color) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val reduceMotion = LocalReduceMotion.current
-    var localForecastExpanded by remember { mutableStateOf(false) }
     val hasNineDaySummary = snapshot.nineDayForecast.generalSituation.isNotBlank()
-    val summaryOffset = 1 + if (hasNineDaySummary) 1 else 0
+    val summaryOffset = if (hasNineDaySummary) 1 else 0
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 22.dp, end = 16.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        item {
-            ExpandableMetroTile(
-                seed = "local-forecast",
-                background = pageColour,
-                expanded = localForecastExpanded,
-                onExpandedChange = {
-                    localForecastExpanded = it
-                    if (it) {
-                        scope.launch {
-                            if (!reduceMotion) delay(150)
-                            listState.animateScrollToItem(0)
-                        }
-                    }
-                },
-                collapsed = {
-                    Text("本港預報", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Light)
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        snapshot.localForecast.generalSituation
-                            .ifBlank { snapshot.localForecast.forecastDescription }
-                            .ifBlank { "香港天文台暫未提供本港預報。" },
-                        color = Color.White,
-                        maxLines = if (localForecastExpanded) Int.MAX_VALUE else 3,
-                        overflow = TextOverflow.Ellipsis,
-                        fontSize = 15.sp,
-                        lineHeight = 21.sp,
-                    )
-                    Text(formatHkoTime(snapshot.localForecast.updatedAt), color = Color.White.copy(alpha = 0.72f), fontSize = 10.sp)
-                },
-                expandedContent = { LocalForecastDetails(snapshot.localForecast) },
-            )
-        }
         if (hasNineDaySummary) {
             item {
                 MetroTile("forecast-summary", pageColour, Modifier.fillMaxWidth()) {
@@ -801,14 +733,26 @@ private fun formatHkoTime(value: String): String {
     }
 }
 
-private fun wmoGlyph(code: Int): String = when (code) {
-    0 -> "☀"
-    in 1..3 -> "☁"
-    in 45..48 -> "≋"
-    in 51..67, in 80..82 -> "☂"
-    in 95..99 -> "ϟ"
-    else -> "☁"
+private fun locationContextLine(location: LocationInfo): String {
+    val labelKey = locationKey(location.label)
+    val districtKey = locationKey(location.district)
+    val stationKey = locationKey(location.stationName)
+    return buildList {
+        if (districtKey != labelKey) add(location.district)
+        if (stationKey != labelKey && stationKey != districtKey) {
+            add("${location.stationName}觀測站")
+        }
+        if (isEmpty()) add("香港天文台觀測站")
+    }.distinct().joinToString(" · ")
 }
+
+private fun locationKey(value: String): String = value
+    .lowercase()
+    .replace("觀測站", "")
+    .replace("天氣站", "")
+    .replace(" district", "")
+    .replace("區", "")
+    .filter { it.isLetterOrDigit() }
 
 private fun Number?.display(suffix: String): String = when (this) {
     null -> "--"

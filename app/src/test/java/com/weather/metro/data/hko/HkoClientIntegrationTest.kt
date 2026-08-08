@@ -18,7 +18,6 @@ class HkoClientIntegrationTest {
         assertTrue(snapshot.current.temperatureC != null)
         assertTrue(snapshot.current.weatherIconCode != null)
         assertTrue(snapshot.nineDayForecast.days.size >= 7)
-        assertTrue(snapshot.hourly.isNotEmpty())
         assertTrue(snapshot.nineDayForecast.generalSituation.isNotBlank())
         assertTrue(snapshot.localForecast.forecastDescription.isNotBlank())
         assertTrue(snapshot.fetchedAtEpochMillis > 0)

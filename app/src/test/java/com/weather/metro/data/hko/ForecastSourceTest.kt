@@ -23,6 +23,7 @@ class ForecastSourceTest {
                     .put("generalSituation", "本港預報概況")
                     .put("forecastPeriod", "本港地區今日天氣預測")
                     .put("forecastDesc", "本港預報內容")
+                    .put("tcInfo", "在下午三時，熱帶氣旋集結在香港以東。")
                     .put("outlook", "本港展望")
                     .put("updateTime", "2026-08-02T09:45:00+08:00"),
             )
@@ -33,8 +34,7 @@ class ForecastSourceTest {
                 "openMeteo",
                 JSONObject()
                     .put("current", JSONObject())
-                    .put("daily", JSONObject())
-                    .put("hourly", JSONObject().put("time", JSONArray())),
+                    .put("daily", JSONObject()),
             )
             .put("sun", JSONObject())
             .put("moon", JSONObject())
@@ -57,6 +57,7 @@ class ForecastSourceTest {
         assertEquals("九天預報天氣概況", snapshot.nineDayForecast.generalSituation)
         assertEquals("本港預報概況", snapshot.localForecast.generalSituation)
         assertEquals("本港預報內容", snapshot.localForecast.forecastDescription)
+        assertEquals("在下午三時，熱帶氣旋集結在香港以東。", snapshot.localForecast.tropicalCycloneInfo)
         assertEquals("2026-08-02T07:50:00+08:00", snapshot.nineDayForecast.updatedAt)
         assertEquals("2026-08-02T09:45:00+08:00", snapshot.localForecast.updatedAt)
     }

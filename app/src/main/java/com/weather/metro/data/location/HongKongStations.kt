@@ -85,7 +85,9 @@ object HongKongStations {
         return LocationInfo(
             latitude = latitude,
             longitude = longitude,
-            label = label.ifBlank { district },
+            label = traditionalHongKongPlaceName(label).ifBlank { district }.let {
+                if (locationKey(it) == locationKey(district)) district else it
+            },
             district = district,
             stationName = station.name,
             tideStationCode = nearestTideStation(latitude, longitude),
@@ -93,8 +95,11 @@ object HongKongStations {
         )
     }
 
-    private fun normalizeDistrict(value: String?): String? {
-        val text = value?.lowercase()?.replace(" district", "") ?: return null
+    internal fun normalizeDistrict(value: String?): String? {
+        val text = traditionalHongKongPlaceName(value.orEmpty())
+            .lowercase()
+            .replace(" district", "")
+        if (text.isBlank()) return null
         return districts.firstOrNull { centre ->
             text.contains(centre.name.lowercase()) || when (centre.name) {
                 "中西區" -> text.contains("central") || text.contains("western")
@@ -142,3 +147,85 @@ object HongKongStations {
         return earthRadiusKm * 2 * atan2(sqrt(a), sqrt(1 - a))
     }
 }
+
+internal fun preferredLocationLabel(
+    candidates: List<String?>,
+    geocodedDistrict: String?,
+): String {
+    val district = HongKongStations.normalizeDistrict(geocodedDistrict)
+    val districtKey = district?.let(::locationKey)
+    return candidates.asSequence()
+        .filterNotNull()
+        .map(::traditionalHongKongPlaceName)
+        .map { it.trim().trim(',', '，') }
+        .filter { candidate ->
+            val key = locationKey(candidate)
+            key.isNotBlank() &&
+                key.any(Char::isLetter) &&
+                key != districtKey &&
+                key !in BROAD_LOCATION_KEYS
+        }
+        .distinctBy(::locationKey)
+        .firstOrNull()
+        ?: district
+        ?: "本地位置"
+}
+
+internal fun traditionalHongKongPlaceName(value: String): String = buildString(value.length) {
+    value.forEach { character -> append(SIMPLIFIED_PLACE_CHARACTERS[character] ?: character) }
+}
+
+private fun locationKey(value: String): String = traditionalHongKongPlaceName(value)
+    .lowercase()
+    .replace(" district", "")
+    .replace("香港特別行政區", "")
+    .replace("區", "")
+    .filter { it.isLetterOrDigit() }
+
+private val BROAD_LOCATION_KEYS = setOf(
+    "香港",
+    "九龍",
+    "新界",
+    "hongkong",
+    "kowloon",
+    "newterritories",
+)
+
+private val SIMPLIFIED_PLACE_CHARACTERS = mapOf(
+    '观' to '觀',
+    '区' to '區',
+    '湾' to '灣',
+    '龙' to '龍',
+    '黄' to '黃',
+    '门' to '門',
+    '贡' to '貢',
+    '离' to '離',
+    '岛' to '島',
+    '东' to '東',
+    '华' to '華',
+    '马' to '馬',
+    '头' to '頭',
+    '厦' to '廈',
+    '广' to '廣',
+    '启' to '啟',
+    '将' to '將',
+    '军' to '軍',
+    '长' to '長',
+    '乐' to '樂',
+    '业' to '業',
+    '发' to '發',
+    '丽' to '麗',
+    '达' to '達',
+    '狮' to '獅',
+    '径' to '徑',
+    '宝' to '寶',
+    '顺' to '順',
+    '伟' to '偉',
+    '铁' to '鐵',
+    '车' to '車',
+    '凤' to '鳳',
+    '围' to '圍',
+    '义' to '義',
+    '桥' to '橋',
+    '滨' to '濱',
+)
